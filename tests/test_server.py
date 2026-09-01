@@ -152,6 +152,60 @@ def test_every_request_lands_in_the_ledger_with_a_counterfactual(client):
     assert row["saved"] > 0
 
 
+def test_streaming_falls_back_when_a_provider_refuses_to_start(monkeypatch):
+    """The failure that made the chat UI unusable.
+
+    A chat client streams every request. A dead account therefore broke every
+    request, because streaming had no fallback at all — justified by "cannot
+    splice two answers together", which is true only once content has actually
+    been sent. A provider that refuses at connection time has sent nothing, and
+    falling back is completely safe.
+    """
+    working = Model(id="t-other", provider="groq", display="T Other", tier=60,
+                    in_price=0.1, out_price=0.4, context=200_000,
+                    max_output=8192)
+    monkeypatch.setattr(catalog, "usable", lambda *a, **k: POOL + [working])
+    monkeypatch.setattr(keys, "present", lambda: ["anthropic", "groq"])
+
+    class Split:
+        async def stream(self, b, model_id, key, usage=None, **kw):
+            if model_id != working.id:
+                raise ProviderError("anthropic", 400,
+                                    "Your credit balance is too low")
+            yield 'data: {"choices":[{"delta":{"content":"hi"}}]}\n\n'
+            if usage is not None:
+                usage["in"], usage["out"] = 5, 2
+            yield "data: [DONE]\n\n"
+
+    monkeypatch.setattr(server.providers, "get", lambda p: Split())
+    c = TestClient(server.app)
+    with c.stream("POST", "/v1/chat/completions",
+                  json=body("lane-perf", stream=True)) as r:
+        assert r.status_code == 200
+        # Headers must name the model that ACTUALLY answered, not the first
+        # choice — which is why the upstream is opened before they are sent.
+        assert r.headers["x-lane-model"] == working.id
+        text = "".join(r.iter_text())
+    assert "hi" in text and "[DONE]" in text
+
+
+def test_streaming_does_not_restart_once_content_has_been_sent(monkeypatch):
+    """The other half of the rule: after real content, a failure is surfaced
+    in-band rather than papered over with a second model's answer."""
+    class Midway:
+        async def stream(self, b, model_id, key, usage=None, **kw):
+            yield 'data: {"choices":[{"delta":{"content":"par"}}]}\n\n'
+            raise ProviderError("anthropic", 529, "overloaded")
+
+    monkeypatch.setattr(server.providers, "get", lambda p: Midway())
+    c = TestClient(server.app)
+    with c.stream("POST", "/v1/chat/completions",
+                  json=body("auto", stream=True)) as r:
+        text = "".join(r.iter_text())
+    assert "par" in text, "the partial answer must survive"
+    assert "overloaded" in text, "the failure must be visible, not silent"
+
+
 def test_streaming_records_usage_after_the_last_frame(client):
     with client.stream("POST", "/v1/chat/completions",
                        json=body("auto", stream=True)) as r:

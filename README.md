@@ -95,7 +95,19 @@ lane doctor
 lane serve
 ```
 
-Then point any OpenAI-compatible client at it and use `auto` as the model:
+Then **open http://127.0.0.1:8080 in a browser and start typing.** LANE serves
+its own chat page — no other client to install, no keys to configure twice.
+Under every reply it shows which model answered, which lane it was sorted into,
+and what it cost; the header keeps a running total against your baseline. The
+routing is visible while you use it rather than in a log you have to go looking
+for.
+
+Switch between Save / Balanced / Performance with the buttons in the header to
+watch the same question get answered by different models.
+
+### Or point your own client at it
+
+Anything OpenAI-compatible works. Use `auto` as the model:
 
 ```bash
 export OPENAI_BASE_URL=http://127.0.0.1:8080/v1
@@ -275,13 +287,15 @@ every figure LANE reports real.
   Anthropic-shaped `/v1/messages` endpoint. Adding one is the clearest next
   step; all the translation machinery already exists in `lane/translate.py`,
   pointed the other way.
-- **Streaming does not fall back.** Non-streaming requests route around a
-  provider that turns out to be dead — a bad key, an empty credit balance, a
-  suspended account are facts about the *provider*, not the request, so LANE
-  excludes it and re-picks (you get `x-lane-degraded: anthropic unavailable`
-  and an answer). Streaming cannot do this: once the first byte is on the wire,
-  quietly restarting on a different model would splice two answers together. A
-  stream that fails mid-flight fails visibly.
+- **Fallback stops once content is on the wire.** A bad key, an empty credit
+  balance, or a suspended account is a fact about the *provider*, not the
+  request, so LANE excludes that provider and re-picks — you get
+  `x-lane-degraded: anthropic unavailable` and an answer. This works for
+  streaming too, because the upstream connection is opened and its first frame
+  pulled *before* any response goes back. But once real content has reached the
+  client, restarting on another model would splice two different answers
+  together, so a stream that dies mid-flight surfaces the error in-band and
+  keeps the partial text.
 - **Only the last user turn is classified.** Letting a long technical history
   outvote the actual question is how a router bills "thanks" at reasoning rates.
 - **Capability scores are judgements, not benchmarks.** `tier` in the catalog is

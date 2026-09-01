@@ -27,7 +27,7 @@ import json
 import time
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from . import catalog, classify, config, keys, ledger, lanes, policy, providers
 from .lanes import Lane
@@ -286,50 +286,124 @@ def _swap(decision: policy.Decision, model) -> policy.Decision:
         est_prompt_tokens=decision.est_prompt_tokens)
 
 
+async def _open_stream(decision: policy.Decision, body: dict, usage: dict,
+                       started: float):
+    """Get a provider actually streaming, routing around ones that refuse.
+
+    The subtlety is WHEN a stream can be abandoned. Once real content has
+    reached the client, restarting on another model would splice two different
+    answers together — so that is never done. But a provider that refuses at
+    connection time has sent nothing at all, and treating that as unrecoverable
+    was a plain mistake: it made a dead account fatal to every streamed
+    request, which is every request a chat UI makes.
+
+    So the upstream is opened and its first frame pulled BEFORE any response
+    goes back. Failures up to that point are free to fall back. Failures after
+    it are not, and are surfaced.
+
+    Returns (decision, first_frame, generator). Raises if nothing will answer.
+    """
+    dead: set[str] = set()
+    tried: list[str] = []
+    current = decision
+    last: ProviderError | None = None
+    want_output = int(body.get("max_tokens") or 1024)
+
+    for attempt in range(_MAX_ATTEMPTS):
+        if attempt:
+            pool = [m for m in catalog.usable()
+                    if m.provider not in dead and m.id not in tried]
+            if not pool:
+                break
+            try:
+                current = policy.choose(
+                    decision.lane, mode=decision.mode, models=pool,
+                    prompt_tokens=decision.est_prompt_tokens,
+                    want_output=want_output)
+            except policy.NoModelAvailable:
+                break
+            current.tier, current.margin = decision.tier, decision.margin
+            current.degraded = True
+            current.degraded_note = (
+                f"{', '.join(sorted(dead))} unavailable" if dead
+                else "first choice was unavailable")
+
+        model = current.model
+        tried.append(model.id)
+        key = keys.get(model.provider)
+        if not key:
+            last = ProviderError(model.provider, 401,
+                                 f"no API key for {model.provider}")
+            dead.add(model.provider)
+            continue
+
+        kwargs = {"usage": usage}
+        if model.provider == "anthropic":
+            kwargs["allow_sampling"] = model.sampling
+        agen = providers.get(model.provider).stream(
+            body, model.id, key, **kwargs)
+
+        try:
+            first = await agen.__anext__()
+        except StopAsyncIteration:
+            return current, None, agen          # empty but successful
+        except ProviderError as exc:
+            last = exc
+            ledger.record(lane=current.lane, mode=current.mode, model=model.id,
+                          provider=model.provider, in_tokens=0, out_tokens=0,
+                          ok=False, error=str(exc), tier=str(current.tier),
+                          streamed=True,
+                          latency_ms=int((time.perf_counter() - started) * 1000))
+            if exc.provider_fatal:
+                dead.add(model.provider)
+                continue
+            if exc.status in _RETRYABLE:
+                continue
+            raise
+        return current, first, agen
+
+    raise last or ProviderError("lane", 502, "no provider answered")
+
+
 async def _stream_response(decision: policy.Decision, body: dict,
                            started: float):
-    """Stream, and write the ledger entry when the last frame has gone.
-
-    No fallback here on purpose. Once the first byte is on the wire the client
-    has already begun rendering an answer; silently restarting on a different
-    model would splice two different responses together. A stream that fails
-    mid-flight fails visibly.
-    """
     usage: dict = {}
-    adapter = providers.get(decision.model.provider)
-    key = keys.get(decision.model.provider)
-    if not key:
-        return _error(401, f"no API key for {decision.model.provider} — "
-                           f"run: lane keys set {decision.model.provider}",
-                      "authentication_error")
-
-    kwargs = {"usage": usage}
-    if decision.model.provider == "anthropic":
-        kwargs["allow_sampling"] = decision.model.sampling
+    try:
+        current, first, agen = await _open_stream(decision, body, usage,
+                                                  started)
+    except ProviderError as exc:
+        detail = str(exc)
+        if exc.provider_fatal:
+            detail += (" — every provider LANE could reach for this request "
+                       "is unavailable")
+        return _error(exc.status, detail, "upstream_error")
 
     async def body_iter():
         ok, err = True, ""
         try:
-            async for frame in adapter.stream(body, decision.model.id, key,
-                                              **kwargs):
+            if first is not None:
+                yield first
+            async for frame in agen:
                 yield frame
         except ProviderError as exc:
+            # Content is already on the wire; the only honest move is to say so
+            # in-band rather than silently truncate.
             ok, err = False, str(exc)
             yield "data: " + json.dumps(
                 {"error": {"message": str(exc), "type": "upstream_error"}}
             ) + "\n\ndata: [DONE]\n\n"
         finally:
             ledger.record(
-                lane=decision.lane, mode=decision.mode,
-                model=decision.model.id, provider=decision.model.provider,
+                lane=current.lane, mode=current.mode,
+                model=current.model.id, provider=current.model.provider,
                 in_tokens=usage.get("in", 0), out_tokens=usage.get("out", 0),
-                tier=str(decision.tier), margin=decision.margin,
+                tier=str(current.tier), margin=current.margin,
                 ok=ok, error=err, streamed=True,
                 latency_ms=int((time.perf_counter() - started) * 1000))
 
     return StreamingResponse(
         body_iter(), media_type="text/event-stream",
-        headers={**_headers(decision), "Cache-Control": "no-cache",
+        headers={**_headers(current), "Cache-Control": "no-cache",
                  "X-Accel-Buffering": "no"})
 
 
@@ -392,6 +466,39 @@ async def dry_run(request: Request):
 @app.get("/lane/stats")
 async def stats(days: float | None = None):
     return ledger.stats(days)
+
+
+@app.get("/", response_class=HTMLResponse)
+async def chat_page():
+    """The reason LANE has a UI at all.
+
+    A proxy nobody points anything at is a well-tested no-op, and asking
+    someone to wire up a separate chat client before they can send a single
+    message is a long way to walk on faith. This page ships with the server:
+    start it, open the address it prints, type. The routing is visible while
+    you use it rather than in a log you have to go looking for.
+    """
+    path = config.PKG / "web" / "chat.html"
+    if not path.is_file():
+        return HTMLResponse(
+            "<p>The chat page is missing from this install. The API still "
+            "works at <code>/v1/chat/completions</code>.</p>", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/lane/catalog")
+async def lane_catalog():
+    """Prices and labels, so the page can show what a message cost without a
+    round trip per message."""
+    return {
+        "models": [{"id": m.id, "display": m.display, "provider": m.provider,
+                    "in_price": m.in_price, "out_price": m.out_price,
+                    "tier": m.tier} for m in catalog.usable()],
+        "lanes": {name: spec["label"] for name, spec in lanes.LANES.items()},
+        "baseline": config.get("baseline_model"),
+        "mode": config.get("mode"),
+        "providers": keys.present(),
+    }
 
 
 @app.get("/health")

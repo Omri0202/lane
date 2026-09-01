@@ -78,9 +78,19 @@ class AnthropicProvider:
                                      allow_sampling=allow_sampling)
         client = self._client(key)
         tr = translate.StreamTranslator(model_id)
-        yield translate.sse(tr.first())
+
+        # Open the upstream stream BEFORE yielding anything. Emitting the role
+        # chunk first meant the first frame left the door without the provider
+        # having accepted the request, so a caller could not tell "this
+        # provider refused" from "this stream died halfway" — and could not
+        # safely fall back to another provider either way.
         try:
             stream = await client.messages.create(**req, stream=True)
+        except Exception as exc:
+            raise self._wrap(exc) from exc
+
+        yield translate.sse(tr.first())
+        try:
             async for event in stream:
                 payload = event.model_dump() if hasattr(event, "model_dump") \
                     else dict(event)
