@@ -94,6 +94,41 @@ def get(provider: str) -> str | None:
     return val.strip() if val else None
 
 
+#: Shortest plausible key from any provider here, with room to spare. The point
+#: is not to validate the key — only the provider can do that — but to catch
+#: the failure that actually happens: a paste that did not go through.
+_MIN_KEY_LEN = 20
+
+
+def looks_valid(provider: str, key: str) -> tuple[bool, str]:
+    """Cheap shape check before a key is stored.
+
+    This exists because `getpass` on Windows PowerShell silently swallows some
+    pastes: the prompt accepts the Enter, nothing is echoed either way, and a
+    two-character key gets stored and reported as saved. The user then debugs
+    the wrong thing entirely — the proxy, the model, the network — because the
+    one component that said it was fine is the one that is broken.
+    """
+    key = (key or "").strip()
+    meta = PROVIDERS.get(provider, {})
+
+    if not key:
+        return False, "nothing was entered"
+    if len(key) < _MIN_KEY_LEN:
+        return False, (
+            f"that is only {len(key)} character{'s' if len(key) != 1 else ''} "
+            f"long — real keys are 40+. The paste probably did not go through")
+    if any(ch.isspace() for ch in key):
+        return False, "there is whitespace inside it — the paste was truncated"
+
+    prefix = meta.get("prefix")
+    if prefix and not key.startswith(prefix):
+        return True, (
+            f"warning: {meta.get('name', provider)} keys usually start with "
+            f"{prefix!r} and this one does not — storing it anyway")
+    return True, ""
+
+
 def set(provider: str, key: str) -> str:
     """Store a key. Returns where it landed, for the caller to report."""
     provider = provider.lower().strip()

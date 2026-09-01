@@ -123,21 +123,51 @@ def cmd_keys(args) -> int:
         if not args.provider:
             print("which provider? " + ", ".join(keys.PROVIDERS))
             return 2
+        name = keys.PROVIDERS[args.provider]["name"]
+
         value = args.value
         if not value:
-            import getpass
-            value = getpass.getpass(
-                f"paste your {keys.PROVIDERS[args.provider]['name']} key "
-                f"(hidden): ").strip()
-        if not value:
-            print("nothing entered")
+            if args.visible:
+                value = input(f"paste your {name} key (VISIBLE): ").strip()
+            else:
+                import getpass
+                value = getpass.getpass(
+                    f"paste your {name} key (hidden): ").strip()
+
+        ok, problem = keys.looks_valid(args.provider, value)
+        if not ok:
+            print(c(f"not saved: {problem}", _RED))
+            if not args.visible:
+                # The failure this catches is almost always a paste that the
+                # hidden prompt swallowed, which several Windows terminals do.
+                print("  " + c("some terminals will not paste into a hidden "
+                               "prompt. Try:", _DIM))
+                print(f"  {c(f'lane keys set {args.provider} --visible', _B)}"
+                      + c("   (key will show on screen)", _DIM))
             return 2
+        if problem:
+            print(c("  " + problem, _Y))
+
         try:
             where = keys.set(args.provider, value)
         except (KeyError, RuntimeError) as exc:
             print(c(str(exc), _RED))
             return 1
         print(f"{c('saved', _G)} {args.provider} key to {where}")
+
+        # Ask the provider whether the key actually works. Listing models is
+        # free and instant, and "saved" without it is a claim LANE cannot
+        # support — which is how a two-character key survived long enough to
+        # look like a routing bug.
+        print(f"  {c('checking it with ' + name + '...', _DIM)}")
+        try:
+            live = asyncio.run(
+                providers.get(args.provider).list_models(value))
+            print(f"  {c('✓ works', _G)} — {len(live)} models available")
+        except Exception as exc:
+            print("  " + c("✗ stored, but " + name + " rejected it", _RED))
+            print("    " + c(str(exc)[:200], _DIM))
+            return 1
         return 0
 
     if args.action in ("rm", "delete", "remove"):
@@ -453,6 +483,9 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("provider", nargs="?", choices=list(keys.PROVIDERS))
     s.add_argument("value", nargs="?",
                    help="the key itself; omit to be prompted without echo")
+    s.add_argument("--visible", action="store_true",
+                   help="show the key as you paste it — for terminals that "
+                        "will not paste into a hidden prompt")
     s.set_defaults(func=cmd_keys)
 
     s = sub.add_parser("models", help="show the catalog")
