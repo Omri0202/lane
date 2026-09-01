@@ -1,20 +1,32 @@
 # L.A.N.E.
 
-**Language Agent Network Exchange** — a local proxy that reads each prompt and
-sends it to the model that should answer it.
+**Language Agent Network Exchange** — it reads what you are about to ask and
+tells you which model should answer it.
 
-You have keys for Anthropic, OpenAI, and Google. You have one chat window. Every
-message you send goes to whichever model you happened to pick that morning —
-including "thanks", which costs the same as a debugging session.
+You pick a model from the dropdown once, in the morning, and then forget. Every
+message for the rest of the day goes to it — including "thanks", which costs
+the same as a debugging session.
 
-LANE sits between your client and the providers. It classifies each request
-locally, picks a model, calls it, and hands the answer back in the shape your
-client already understands. Nothing in your setup changes except one base URL.
+LANE reads each request locally — in about 200 microseconds, without calling a
+model to decide which model to call — and picks the one that should answer it.
+
+It comes in two shapes. **A browser panel** that sits over claude.ai,
+chatgpt.com or gemini and tells you which model to pick before you send, while
+you are still using those sites normally. And **a local proxy** that any
+OpenAI-compatible app can point at, which does the picking for you.
 
 ```
-your app  ──▶  LANE  ──▶  Anthropic / OpenAI / Google
-               │
-               └─ classifies locally, in ~200µs, for free
+   you typing in claude.ai          any OpenAI-compatible app
+            │                                  │
+            ▼                                  ▼
+   ┌─────────────────┐                ┌─────────────────┐
+   │  advisor panel  │                │   local proxy   │
+   │ "use Sonnet 5,  │                │  picks for you  │
+   │  5x cheaper"    │                │  and calls it   │
+   └─────────────────┘                └─────────────────┘
+            └──────────────┬───────────────────┘
+                           ▼
+              classified locally, ~200µs, free
 ```
 
 ---
@@ -144,6 +156,70 @@ model="claude-opus-5"       # no routing — but still metered
 ```
 
 A router you cannot switch off is a router people work around.
+
+---
+
+## The advisor — a panel over claude.ai, chatgpt.com, gemini
+
+This is LANE without the proxy, and for most people it is the point of the
+whole thing.
+
+You are already talking to Claude in a browser. You are already paying for it.
+The only decision you actually make is which model to pick from the dropdown,
+and you make it once, in the morning, and then forget — so every "thanks" for
+the rest of the day goes to the most expensive model you own.
+
+The advisor is a small card in the corner of that page. It reads what you are
+typing, on your machine, and tells you which model this particular message
+wants — **before you send it**, while there is still time to act on it.
+
+```
+┌──────────────────────────────┐
+│ L.A.N.E.                   × │
+├──────────────────────────────┤
+│ REASONING     13 words       │
+│ how the message reads        │
+│ ─────────────────────────    │
+│ USE ON CLAUDE                │
+│ Claude Sonnet 5              │
+│ ~5× cheaper than Fable 5     │
+└──────────────────────────────┘
+```
+
+Type "thanks that worked perfectly" instead and it becomes `SIMPLE → Claude
+Haiku 4.5, ~10× cheaper`. Same box, different sentence, different answer.
+
+It only ever recommends models **that site can actually give you** — advising
+Gemini Flash to somebody sitting in claude.ai is not a saving, it is a chore.
+
+### Installing it
+
+The advisor talks to your local LANE, so start that first:
+
+```bash
+lane serve
+```
+
+Then load the extension. In Chrome or Edge, go to `chrome://extensions`, turn
+on **Developer mode**, click **Load unpacked**, and select the `extension`
+folder inside this repository. Open claude.ai and start typing.
+
+Nothing is intercepted and nothing is sent anywhere: your message goes to
+Claude exactly as it always did. LANE only ever sees the text you are typing,
+on `127.0.0.1`, to classify it.
+
+If you have moved LANE off port 8080, set the endpoint in the extension's
+storage — or change the one line at the top of `extension/advisor.js`.
+
+### Working on the panel
+
+```
+http://127.0.0.1:8080/dev/advisor?site=claude
+```
+
+A fake composer served by LANE itself, so the panel can be developed without
+side-loading an unpacked extension into a real chat site every time. Swap
+`site=` for `chatgpt` or `gemini` to see what each one would recommend.
 
 ---
 

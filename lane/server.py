@@ -26,7 +26,7 @@ from __future__ import annotations
 import json
 import time
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from . import catalog, classify, config, keys, ledger, lanes, policy, providers
@@ -463,6 +463,109 @@ async def dry_run(request: Request):
     return out
 
 
+#: Sites the advisor overlay runs on. CORS is granted to these and ONLY for
+#: /lane/advise, which spends nothing — deliberately not for
+#: /v1/chat/completions. A page that could reach the completions endpoint
+#: cross-origin could spend the user's money without them asking.
+_ADVISOR_ORIGINS = {
+    "https://claude.ai", "https://www.claude.ai",
+    "https://chatgpt.com", "https://chat.openai.com",
+    "https://gemini.google.com", "https://aistudio.google.com",
+}
+
+#: Which provider's models a given site can actually offer you. Advising
+#: "use GPT-OSS 20B" to somebody sitting in claude.ai is worse than useless —
+#: it is advice they cannot take.
+_SITE_PROVIDER = {
+    "claude": "anthropic", "chatgpt": "openai", "gemini": "google",
+}
+
+
+def _cors(origin: str | None) -> dict:
+    if origin in _ADVISOR_ORIGINS:
+        return {"Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Headers": "content-type",
+                "Access-Control-Allow-Methods": "POST, OPTIONS",
+                "Vary": "Origin"}
+    return {}
+
+
+@app.options("/lane/advise")
+async def advise_preflight(request: Request):
+    return Response(status_code=204,
+                    headers=_cors(request.headers.get("origin")))
+
+
+@app.post("/lane/advise")
+async def advise(request: Request):
+    """What model should the person typing this pick, right now?
+
+    Different from /lane/route in two ways that matter.
+
+    It ranks over the models of ONE provider — whichever site they are typing
+    into — because a recommendation they cannot act on is noise.
+
+    And it reports a MULTIPLE, not a price. Someone in claude.ai is spending a
+    subscription allowance, not dollars per token; "about 25x cheaper than
+    Opus" is a true and useful statement in both worlds, where "$0.0004" is
+    only true in one of them.
+    """
+    cors = _cors(request.headers.get("origin"))
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "bad json"}, status_code=400,
+                            headers=cors)
+
+    text = (body.get("text") or "").strip()
+    provider = _SITE_PROVIDER.get(body.get("site") or "")
+    messages = [{"role": "user", "content": text}]
+    verdict = classify.classify(messages)
+    tokens = policy.estimate_tokens(messages)
+
+    # Every model the SITE offers, not every model LANE has a key for. The
+    # person is choosing from a dropdown in a web app; whether an API key
+    # happens to be configured here has nothing to do with it.
+    pool = [m for m in catalog.all_models()
+            if not provider or m.provider == provider]
+    if not pool:
+        return JSONResponse({"lane": verdict["lane"], "models": []},
+                            headers=cors)
+
+    out = {
+        "lane": verdict["lane"],
+        "lane_label": lanes.label(verdict["lane"]),
+        "reason": verdict["reason"],
+        "tier": verdict["tier"],
+        "took_us": verdict["took_us"],
+        "words": len(text.split()),
+        "picks": {},
+    }
+    for mode in config.MODES:
+        try:
+            d = policy.choose(verdict["lane"], mode=mode, models=pool,
+                              prompt_tokens=tokens, want_output=1024)
+        except policy.NoModelAvailable:
+            continue
+        out["picks"][mode] = {"id": d.model.id, "display": d.model.display,
+                              "tier": d.model.tier,
+                              "degraded": d.degraded}
+
+    top = max(pool, key=lambda m: m.tier)
+    rec_id = (out["picks"].get(config.get("mode"))
+              or out["picks"].get(config.MODE_BALANCED) or {}).get("id")
+    rec = catalog.by_id(rec_id) or top
+    out["recommend"] = {"id": rec.id, "display": rec.display, "tier": rec.tier}
+    out["top"] = {"id": top.id, "display": top.display, "tier": top.tier}
+
+    # How much lighter the recommendation is than reaching for the best model
+    # every time. 1.0 means the recommendation IS the top model.
+    rec_price, top_price = rec.blended(), top.blended()
+    out["factor"] = round(top_price / rec_price, 1) if rec_price else 1.0
+    out["is_top"] = rec.id == top.id
+    return JSONResponse(out, headers=cors)
+
+
 @app.get("/lane/stats")
 async def stats(days: float | None = None):
     return ledger.stats(days)
@@ -484,6 +587,45 @@ async def chat_page():
             "<p>The chat page is missing from this install. The API still "
             "works at <code>/v1/chat/completions</code>.</p>", status_code=404)
     return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/dev/advisor.js")
+async def advisor_script():
+    """The extension's content script, served for the local harness below."""
+    path = config.PKG.parent / "extension" / "advisor.js"
+    if not path.is_file():
+        return Response("// extension not present in this install", status_code=404,
+                        media_type="application/javascript")
+    return Response(path.read_text(encoding="utf-8"),
+                    media_type="application/javascript")
+
+
+@app.get("/dev/advisor", response_class=HTMLResponse)
+async def advisor_harness(site: str = "claude"):
+    """A fake composer for developing the advisor panel.
+
+    The panel's whole job is to appear over somebody else's website while they
+    type. Reviewing a change to it should not require side-loading an
+    unpacked extension into claude.ai and typing a sentence by hand.
+    """
+    return HTMLResponse(f"""<!doctype html><meta charset=utf-8>
+<title>LANE advisor harness — {site}</title>
+<style>
+ body {{ font: 15px/1.6 ui-sans-serif, system-ui, sans-serif; margin:0;
+        min-height:100vh; background:#f2f3f5; color:#14171a;
+        display:flex; flex-direction:column; }}
+ @media (prefers-color-scheme: dark) {{
+   body {{ background:#0e1013; color:#e8eaed; }}
+   textarea {{ background:#171a1f; color:#e8eaed; border-color:#2b313a; }} }}
+ header {{ padding:14px 20px; font-size:13px; opacity:.6; }}
+ main {{ flex:1; display:flex; align-items:flex-end;
+         justify-content:center; padding:0 20px 60px; }}
+ textarea {{ width:min(680px,100%); height:110px; font:inherit; padding:14px;
+             border-radius:12px; border:1px solid #d8dbe0; background:#fff; }}
+</style>
+<header>Pretending to be <b>{site}</b> — type below and watch the panel.</header>
+<main><textarea placeholder="Ask something…" autofocus></textarea></main>
+<script src="/dev/advisor.js"></script>""")
 
 
 @app.get("/lane/catalog")
