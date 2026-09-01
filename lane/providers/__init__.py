@@ -28,7 +28,7 @@ def get(provider: str):
     if provider == "anthropic":
         from .anthropic_api import AnthropicProvider
         adapter = AnthropicProvider()
-    elif provider in ("openai", "google"):
+    elif provider in OpenAICompatProvider.BASE_URLS:
         adapter = OpenAICompatProvider(provider)
     else:
         raise KeyError(f"no adapter for provider {provider!r}")

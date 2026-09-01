@@ -90,6 +90,27 @@ def test_degrades_loudly_rather_than_silently():
     assert d.degraded and d.degraded_note
 
 
+def test_degrading_takes_the_strongest_not_the_cheapest():
+    """Regression: with only a free-tier provider installed, balanced mode
+    answered the REASONING lane with the weakest model in the pool.
+
+    Once the floor cannot be met it was being dropped entirely and the ordinary
+    mode ranking applied — and with no floor, the cheapest model also has the
+    best capability-per-dollar, so 'balanced' and 'save' both picked the worst
+    model for the hardest request. When the bar cannot be met, mode stops
+    applying: the user asked for more than exists, so give them the most there
+    is.
+    """
+    weak_pool = [CHEAP, MID]          # neither reaches the reasoning floor
+    assert all(m.tier < lanes.floor(Lane.REASONING) for m in weak_pool)
+    for mode in (MODE_SAVE, MODE_BALANCED, MODE_PERFORMANCE):
+        d = policy.choose(Lane.REASONING, mode=mode, models=weak_pool)
+        assert d.degraded, f"{mode} should report degradation"
+        assert d.model is MID, (
+            f"{mode} picked {d.model.id}; the strongest available is required "
+            f"when nothing meets the bar")
+
+
 def test_raises_when_nothing_can_serve_it():
     with pytest.raises(policy.NoModelAvailable):
         policy.choose(Lane.VISION, mode=MODE_SAVE, models=[BLIND])

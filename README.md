@@ -55,9 +55,27 @@ It prompts without echoing and stores the key in your OS keyring (Windows
 Credential Manager, macOS Keychain, Secret Service on Linux). Keys never touch
 a config file. Repeat for `openai` and `google`.
 
+Supported: `anthropic`, `openai`, `google`, `groq`, `openrouter`.
+
 You need **at least one**. LANE routes among whatever it finds — with one key it
-still saves money by picking the right model *within* that provider; with three
-it can cross between them.
+still saves money by picking the right model *within* that provider; with
+several it can cross between them.
+
+**No budget, or under 18?** Google AI Studio requires an account holder aged
+18+, and the paid providers need credits. **Groq has a free tier** with daily
+token allowances and no such gate, so it is the cheapest way to run LANE at
+all:
+
+```bash
+lane keys set groq
+```
+
+The five Groq models in the catalog were chosen because they are known to work
+rather than guessed at. Note that only `qwen/qwen3.6-27b` reads images, so on
+Groq alone it *is* the vision lane; and Groq's strongest model sits below the
+reasoning floor, so hard questions come back marked `x-lane-degraded` — LANE
+gives you the best it has and tells you it is not enough, rather than pretending
+otherwise.
 
 If there is no keyring on the machine (headless Linux, usually), export
 `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` instead. `lane doctor`
@@ -235,8 +253,8 @@ request that could cost more than this, before spending anything),
 Model prices go stale. LANE handles that structurally rather than by hoping:
 
 - **Anthropic prices are verified** (2026-06-24).
-- **OpenAI and Google prices are starting guesses.** `lane models` marks them,
-  and any savings figure that depends on them is flagged as an estimate.
+- **OpenAI, Google, and Groq prices are starting guesses.** `lane models` marks
+  them, and any savings figure that depends on them is flagged as an estimate.
 - `lane models --sync` asks each provider which models your key can actually
   reach, hides the ones it cannot, and lists any it offers that the catalog
   does not know about.

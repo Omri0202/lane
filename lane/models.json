@@ -10,12 +10,15 @@
     "it are marked estimated. Run `lane models --sync` to prune entries your",
     "keys cannot actually reach and to list models the provider offers that are",
     "missing here.",
-    "sampling: false means the provider REJECTS temperature/top_p with a 400. The adapter strips them rather than forwarding what the client sent."
+    "sampling: false means the provider REJECTS temperature/top_p with a 400. The adapter strips them rather than forwarding what the client sent.",
+    "groq/compound is deliberately ABSENT. G.I.L. measured it returning no content in streaming mode across three attempts; a model that silently answers nothing is worse than a missing one. Re-add it only once its tool-step response shape is handled."
   ],
   "pricing_verified": {
     "anthropic": "2026-06-24",
     "openai": null,
-    "google": null
+    "google": null,
+    "groq": null,
+    "openrouter": null
   },
   "models": [
     {
@@ -203,6 +206,81 @@
       "tools": true,
       "speed": 200,
       "sampling": true
+    },
+    {
+      "id": "openai/gpt-oss-120b",
+      "provider": "groq",
+      "display": "GPT-OSS 120B",
+      "tier": 80,
+      "in_price": 0.15,
+      "out_price": 0.75,
+      "context": 131072,
+      "max_output": 32768,
+      "vision": false,
+      "tools": true,
+      "speed": 477,
+      "sampling": true,
+      "notes": "Strongest model on Groq's free tier. Proven on this account by G.I.L."
+    },
+    {
+      "id": "openai/gpt-oss-20b",
+      "provider": "groq",
+      "display": "GPT-OSS 20B",
+      "tier": 68,
+      "in_price": 0.1,
+      "out_price": 0.5,
+      "context": 131072,
+      "max_output": 32768,
+      "vision": false,
+      "tools": true,
+      "speed": 801,
+      "sampling": true,
+      "notes": "Same family as the 120B, much quicker to first token."
+    },
+    {
+      "id": "llama-3.3-70b-versatile",
+      "provider": "groq",
+      "display": "Llama 3.3 70B",
+      "tier": 72,
+      "in_price": 0.59,
+      "out_price": 0.79,
+      "context": 131072,
+      "max_output": 32768,
+      "vision": false,
+      "tools": true,
+      "speed": 585,
+      "sampling": true,
+      "notes": "A genuinely different prose voice from the gpt-oss family."
+    },
+    {
+      "id": "llama-3.1-8b-instant",
+      "provider": "groq",
+      "display": "Llama 3.1 8B",
+      "tier": 45,
+      "in_price": 0.05,
+      "out_price": 0.08,
+      "context": 131072,
+      "max_output": 8192,
+      "vision": false,
+      "tools": true,
+      "speed": 864,
+      "sampling": true,
+      "notes": "Fastest sustained output by a wide margin. Short replies only."
+    },
+    {
+      "id": "qwen/qwen3.6-27b",
+      "provider": "groq",
+      "display": "Qwen3.6 27B",
+      "tier": 60,
+      "in_price": 0.29,
+      "out_price": 0.59,
+      "context": 131072,
+      "max_output": 32768,
+      "vision": true,
+      "tools": true,
+      "speed": 472,
+      "sampling": true,
+      "notes": "The ONLY model on Groq that reads images \u2014 so it is the whole vision lane when Groq is your only provider."
     }
   ]
 }

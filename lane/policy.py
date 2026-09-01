@@ -185,23 +185,39 @@ def choose(lane: str, *, mode: str | None = None,
 
     floor = lanes.floor(lane)
     qualified = [m for m in cand if m.tier >= floor]
-    if not qualified:
+
+    if qualified:
+        ranked = _rank(qualified, mode, lanes.spec(lane)["prefers"])
+        if mode == config.MODE_SAVE:
+            why = ("cheapest model that still clears the "
+                   f"{lanes.label(lane).lower()} bar")
+        elif mode == config.MODE_PERFORMANCE:
+            why = ("strongest model available for "
+                   f"{lanes.label(lane).lower()} work")
+        else:
+            why = "best capability per dollar for this lane"
+    else:
+        # Nothing clears the bar, so MODE NO LONGER APPLIES. The user has asked
+        # for more capability than exists in their catalog; the only sensible
+        # answer is the most there is.
+        #
+        # Ranking by mode here was a real bug: with only a free-tier provider
+        # installed, balanced mode answered the REASONING lane with the
+        # weakest 8B model, because once the floor is dropped the cheapest
+        # model also has the best capability-per-dollar. That is the exact
+        # under-routing failure the floor exists to prevent, arriving through
+        # the door left open when the floor cannot be met.
         qualified = cand
         degraded = True
-        best = max(cand, key=lambda m: m.tier)
+        ranked = sorted(cand, key=lambda m: (-m.tier, m.blended()))
         note = (note + "; " if note else "") + (
             f"nothing you have keys for meets the {lanes.label(lane).lower()} "
-            f"bar (needs {floor}, best available is {best.tier})")
+            f"bar (needs {floor}, best available is {ranked[0].tier}) — "
+            f"using the strongest you have")
+        why = (f"no model meets the {lanes.label(lane).lower()} bar; "
+               f"this is the strongest available")
 
-    ranked = _rank(qualified, mode, lanes.spec(lane)["prefers"])
     winner = ranked[0]
-
-    if mode == config.MODE_SAVE:
-        why = f"cheapest model that still clears the {lanes.label(lane).lower()} bar"
-    elif mode == config.MODE_PERFORMANCE:
-        why = f"strongest model available for {lanes.label(lane).lower()} work"
-    else:
-        why = "best capability per dollar for this lane"
 
     return Decision(model=winner, lane=lane, mode=mode, reason=why,
                     degraded=degraded, degraded_note=note,

@@ -225,7 +225,7 @@ def cmd_models(args) -> int:
     print(f"\n  {c('●', _G)} routable   "
           f"{c('○', _DIM)} no key   {c('✗', _RED)} key cannot reach it")
 
-    unverified = [p for p in ("anthropic", "openai", "google")
+    unverified = [p for p in keys.PROVIDERS
                   if not catalog.pricing_verified(p)]
     if unverified:
         print("\n  " + c("prices unverified for: " + ", ".join(unverified), _Y))

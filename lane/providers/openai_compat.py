@@ -25,9 +25,14 @@ from typing import AsyncIterator
 
 import httpx
 
+#: Every one of these speaks the OpenAI wire format, so they differ by nothing
+#: but a URL. That is why adding a provider here is a one-line change rather
+#: than a new adapter.
 BASE_URLS = {
     "openai": "https://api.openai.com/v1",
     "google": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "groq": "https://api.groq.com/openai/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
 }
 
 #: Parameters that mean something to LANE and nothing to a provider.
@@ -38,6 +43,7 @@ _TIMEOUT = httpx.Timeout(connect=10.0, read=600.0, write=30.0, pool=10.0)
 
 class OpenAICompatProvider:
     name: str
+    BASE_URLS = BASE_URLS
 
     def __init__(self, name: str):
         self.name = name

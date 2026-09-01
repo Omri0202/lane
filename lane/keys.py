@@ -37,6 +37,24 @@ PROVIDERS: dict[str, dict] = {
         "name": "Google Gemini",
         "console": "https://aistudio.google.com/apikey",
         "prefix": "",
+        "note": "AI Studio requires an account holder aged 18+.",
+    },
+    "groq": {
+        "env": "GROQ_API_KEY",
+        "name": "Groq",
+        "console": "https://console.groq.com/keys",
+        "prefix": "gsk_",
+        "note": "Has a free tier with daily token allowances — the cheapest "
+                "way to run LANE at all, and the one to reach for when the "
+                "paid providers are unavailable.",
+    },
+    "openrouter": {
+        "env": "OPENROUTER_API_KEY",
+        "name": "OpenRouter",
+        "console": "https://openrouter.ai/keys",
+        "prefix": "sk-or-",
+        "note": "One key, many providers. Some models are free at the point "
+                "of use; add them with `lane models --sync`.",
     },
 }
 
