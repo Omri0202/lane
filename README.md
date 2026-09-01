@@ -510,6 +510,86 @@ never quietly netted off the savings it is measuring.
 
 ---
 
+## Teams, budgets and attribution
+
+The change that makes LANE something a company can sign for rather than a tool
+one person runs.
+
+One LANE serves the whole company. Each team gets a key LANE issued:
+
+```bash
+lane team add Engineering 500
+```
+
+```
+  created Engineering  (engineering)
+  budget  $500.00 monthly  hard - requests are refused at the limit
+
+── their key - shown once, never again ───────────────────────
+
+  lane-sk-VaT5jKQyy8kTpT1uMaCsDl5jxjsIQeqACV4wvliihLk
+
+── what they do with it ──────────────────────────────────────
+  OPENAI_BASE_URL=http://127.0.0.1:8080/v1
+  OPENAI_API_KEY=lane-sk-VaT5jKQyy8kTpT1uMaCsDl5jxjsIQeqACV4wvliihLk
+```
+
+### Key isolation
+
+The provider keys live in exactly one place — the machine running LANE, in its
+OS credential store. **Developers never hold one.** What they hold is a LANE
+key scoped to their team, revocable in one command without rotating anything
+upstream.
+
+Today a leaked provider key means an emergency rotation and every team's
+integration breaking at once. Here it means `lane team rotate engineering`,
+and nobody else notices.
+
+Keys are stored as SHA-256 digests. A stolen `teams.json` is a list of team
+names and budgets, not a set of working credentials — LANE itself cannot show
+you a key after the moment it was created.
+
+### Budgets that actually stop
+
+```
+  Support has used $4.02 of its $4.00 budget this month.
+  Raise it with `lane team budget support <amount>`.
+```
+
+Returned as **402** before the request is sent, so the money is not spent. The
+estimated cost of the request is charged against the budget *before* the
+comparison — a ceiling that can be crossed once per period is not a ceiling.
+
+`--soft` warns instead of refusing, for a team that must never be
+interrupted but should still be visible when it goes over.
+
+### Where the money went
+
+```bash
+lane spend --days 30
+```
+
+```
+── spend · last 30 days ──────────────────────────────────────
+  Engineering
+        1,284 requests      $31.40   saved $118.60
+      ████████████░░░░░░░░░░ 63% of $50.00 monthly
+  Support
+          212 requests       $2.90   saved $18.10
+      ██░░░░░░░░░░░░░░░░░░░░ 12% of $25.00 monthly
+
+  total     $34.30
+  audit      $0.71  shadow calls, billed separately
+  saved    $136.70  vs claude-opus-5 throughout
+```
+
+Creating the first team is what switches authentication on. Before that LANE is
+a personal tool on a laptop and demanding a key would be friction for nobody;
+after it, an unauthenticated request is refused — otherwise every budget in the
+system could be sidestepped by omitting a header.
+
+---
+
 ## Commands
 
 | | |
@@ -524,6 +604,10 @@ never quietly netted off the savings it is measuring.
 | `lane config <key> <value>` | change a setting |
 | `lane audit` | what the routing cost in quality, measured |
 | `lane audit --judge` | grade the sampled pairs |
+| `lane team` | issue keys, set budgets, see who spent what |
+| `lane team add <name> <budget>` | create a team and mint its key |
+| `lane team rotate <id>` | new key, old one dead immediately |
+| `lane spend` | what each team spent, against what budget |
 | `lane doctor` | check the installation |
 
 Useful settings: `mode`, `baseline_model`, `max_cost_per_request` (refuse a

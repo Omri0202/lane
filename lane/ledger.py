@@ -42,7 +42,8 @@ def record(*, lane: str, mode: str, model: str, provider: str,
            in_tokens: int, out_tokens: int, latency_ms: int = 0,
            tier: str = "", margin: float = 0.0, ok: bool = True,
            error: str = "", baseline: str | None = None,
-           streamed: bool = False, source: str = "proxy") -> dict:
+           streamed: bool = False, source: str = "proxy",
+           team: str | None = None) -> dict:
     """Append one request to the ledger. Never raises — a failure to write
     accounting must not fail a request the user already paid for."""
     m = catalog.by_id(model)
@@ -73,6 +74,9 @@ def record(*, lane: str, mode: str, model: str, provider: str,
         #: it WOULD have saved. The two must never be added together, and the
         #: field exists so that they cannot be by accident.
         "source": source,
+        #: Which team's budget this came out of. None on a single-user
+        #: install, where the question does not arise.
+        "team": team,
     }
     if error:
         row["error"] = error[:400]
@@ -110,7 +114,8 @@ def read(days: float | None = None, limit: int | None = None) -> list[dict]:
     return rows[-limit:] if limit else rows
 
 
-def stats(days: float | None = None, source: str = "proxy") -> dict:
+def stats(days: float | None = None, source: str = "proxy",
+          team: str | None = None) -> dict:
     """Aggregate the ledger into something worth printing.
 
     `source` matters more than it looks. Proxy rows are money that left the
@@ -121,7 +126,8 @@ def stats(days: float | None = None, source: str = "proxy") -> dict:
     """
     rows = [r for r in read(days)
             if r.get("ok", True)
-            and r.get("source", "proxy") == source]
+            and r.get("source", "proxy") == source
+            and (team is None or r.get("team") == team)]
     total = {
         "requests": len(rows),
         "in_tokens": sum(r.get("in", 0) for r in rows),
@@ -155,6 +161,7 @@ def stats(days: float | None = None, source: str = "proxy") -> dict:
         "by_lane": group("lane"),
         "by_model": group("model"),
         "by_provider": group("provider"),
+        "by_team": group("team"),
         "errors": len(errors),
     }
 

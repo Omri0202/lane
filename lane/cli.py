@@ -16,7 +16,7 @@ import json
 import sys
 
 from . import (audit, catalog, classify, config, keys, ledger, lanes,
-               policy, providers)
+               policy, providers, teams)
 
 _DIM, _B, _R = "\033[2m", "\033[1m", "\033[0m"
 _G, _Y, _RED = "\033[32m", "\033[33m", "\033[31m"
@@ -522,6 +522,196 @@ def cmd_audit(args) -> int:
     return 0
 
 
+
+# ── lane team / lane spend ───────────────────────────────────────────────────
+
+def _bar(fraction: float, width: int = 22) -> str:
+    filled = max(0, min(width, round(fraction * width)))
+    return "\u2588" * filled + "\u2591" * (width - filled)
+
+
+def cmd_team(args) -> int:
+    action = args.action or "list"
+
+    if action == "list":
+        rows = teams.all_teams()
+        if not rows:
+            print()
+            print("  no teams yet — LANE is in single-user mode and accepts "
+                  "any request.")
+            print("  " + c("create one and it starts requiring a key:", _DIM))
+            print("  " + c("lane team add Engineering --budget 500", _B))
+            print()
+            return 0
+
+        print()
+        print(_rule("teams"))
+        for t in rows:
+            st = teams.status(t["id"])
+            mark = c("\u25cf", _G) if not st["disabled"] else c("\u25cb", _RED)
+            head = f"  {mark} {st['name']}  {c('(' + st['id'] + ')', _DIM)}"
+            print(head)
+            if st["budget"]:
+                pct = st["fraction"]
+                tone = _RED if pct >= 1 else (_Y if pct >= 0.8 else _G)
+                kind = "hard" if st["hard"] else "soft"
+                print(f"      {c(_bar(pct), tone)} "
+                      f"{ledger.money(st['spent'])} of "
+                      f"{ledger.money(st['budget'])} {st['period']} "
+                      f"{c('(' + kind + ')', _DIM)}")
+                if st["over"]:
+                    word = "blocked" if st["hard"] else "over, still allowed"
+                    print(f"      {c(word, _RED if st['hard'] else _Y)}")
+            else:
+                print(f"      {ledger.money(st['spent'])} spent  "
+                      + c("no budget set", _DIM))
+        print()
+        return 0
+
+    if action == "add":
+        if not args.name:
+            print("give the team a name: lane team add Engineering")
+            return 2
+        try:
+            team, key = teams.create(
+                args.name, budget=args.budget or 0.0,
+                period=args.period, hard=not args.soft)
+        except ValueError as exc:
+            print(c(str(exc), _RED))
+            return 1
+
+        print()
+        print(f"  {c('created', _G)} {team['name']}  "
+              + c("(" + team["id"] + ")", _DIM))
+        if team["budget"]:
+            kind = "hard - requests are refused at the limit" if team["hard"] \
+                else "soft - requests are allowed, but flagged"
+            print(f"  budget  {ledger.money(team['budget'])} "
+                  f"{team['period']}  {c(kind, _DIM)}")
+        print()
+        print(_rule("their key - shown once, never again"))
+        print()
+        print(f"  {c(key, _B)}")
+        print()
+        print("  " + c("LANE stores only a hash of this. Lose it and the only "
+                       "way back is", _DIM))
+        print("  " + c(f"`lane team rotate {team['id']}`, which invalidates "
+                       f"this one immediately.", _DIM))
+        print()
+        print(_rule("what they do with it"))
+        print(f"  OPENAI_BASE_URL=http://{config.get('host')}:"
+              f"{config.get('port')}/v1")
+        print(f"  OPENAI_API_KEY={key}")
+        print()
+        print("  " + c("They never hold a provider key. Revoking this one "
+                       "affects nobody else.", _DIM))
+        print()
+        return 0
+
+    if not args.name:
+        print(f"which team? lane team {action} <id>")
+        return 2
+    team_id = teams.slug(args.name)
+
+    if action == "rotate":
+        try:
+            key = teams.rotate(team_id)
+        except KeyError:
+            print(c(f"no team {team_id!r}", _RED))
+            return 1
+        print()
+        print(f"  {c('rotated', _G)} - the previous key stopped working now.")
+        print(f"  {c(key, _B)}")
+        print()
+        return 0
+
+    if action == "budget":
+        if args.budget is None:
+            print("how much? lane team budget engineering 500")
+            return 2
+        try:
+            t = teams.set_budget(team_id, budget=args.budget,
+                                 period=args.period,
+                                 hard=(None if args.soft is None else not args.soft))
+        except (KeyError, ValueError) as exc:
+            print(c(str(exc), _RED))
+            return 1
+        print(f"{c('set', _G)} {t['name']}: {ledger.money(t['budget'])} "
+              f"{t['period']} ({'hard' if t['hard'] else 'soft'})")
+        return 0
+
+    if action in ("disable", "enable"):
+        try:
+            t = teams.set_disabled(team_id, action == "disable")
+        except KeyError:
+            print(c(f"no team {team_id!r}", _RED))
+            return 1
+        print(f"{c(action + 'd', _G)} {t['name']}")
+        return 0
+
+    if action in ("rm", "remove", "delete"):
+        if teams.remove(team_id):
+            print(f"removed {team_id} - its key no longer works")
+            print(c("  past spend stays in the ledger for the record", _DIM))
+            return 0
+        print(c(f"no team {team_id!r}", _RED))
+        return 1
+
+    print(f"unknown action {action!r}")
+    return 2
+
+
+def cmd_spend(args) -> int:
+    """Where the money went, by team. The report a finance owner asks for."""
+    rows = teams.all_teams()
+    s = ledger.stats(args.days, source="proxy")
+    audit_total = ledger.stats(args.days, source="audit")["total"]
+
+    print()
+    window = f"last {args.days:g} days" if args.days else "all time"
+    print(_rule(f"spend \u00b7 {window}"))
+
+    if not rows:
+        t = s["total"]
+        print(f"  {ledger.money(t['cost'])} over {t['requests']:,} requests")
+        print("  " + c("no teams configured - nothing to attribute it to.",
+                       _DIM))
+        print("  " + c("lane team add Engineering --budget 500", _B))
+        print()
+        return 0
+
+    total = 0.0
+    for t in rows:
+        st = teams.status(t["id"])
+        by = s["by_team"].get(t["id"], {"requests": 0, "cost": 0.0,
+                                        "saved": 0.0})
+        total += by["cost"]
+        pct = st["fraction"]
+        tone = _RED if pct >= 1 else (_Y if pct >= 0.8 else _G)
+
+        print(f"  {c(st['name'], _B)}")
+        line = (f"      {by['requests']:>6,} requests   "
+                f"{ledger.money(by['cost']):>10}")
+        if by["saved"] > 0:
+            line += c(f"   saved {ledger.money(by['saved'])}", _G)
+        print(line)
+        if st["budget"]:
+            print(f"      {c(_bar(pct), tone)} {pct:.0%} of "
+                  f"{ledger.money(st['budget'])} {st['period']}")
+
+    print()
+    print(f"  {'total':<10}{ledger.money(total)}")
+    if audit_total["cost"]:
+        print(f"  {'audit':<10}{ledger.money(audit_total['cost'])}  "
+              + c("shadow calls, billed separately", _DIM))
+    if s["total"]["saved"] > 0:
+        print(f"  {c('saved', _G):<19}"
+              f"{c(ledger.money(s['total']['saved']), _G)}  "
+              + c(f"vs {config.get('baseline_model')} throughout", _DIM))
+    print()
+    return 0
+
+
 # ── lane config / doctor ─────────────────────────────────────────────────────
 
 def cmd_config(args) -> int:
@@ -689,6 +879,24 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--show", type=int, default=0, metavar="N",
                    help="print the last N pairs in full")
     s.set_defaults(func=cmd_audit)
+
+    s = sub.add_parser("team", help="issue keys, set budgets, see who spent what")
+    s.add_argument("action", nargs="?",
+                   choices=["list", "add", "rotate", "budget", "disable",
+                            "enable", "rm", "remove", "delete"])
+    s.add_argument("name", nargs="?", help="team name, or id for later actions")
+    s.add_argument("budget", nargs="?", type=float,
+                   help="budget in USD, for add and budget")
+    s.add_argument("--budget", dest="budget", type=float,
+                   help=argparse.SUPPRESS)
+    s.add_argument("--period", default=teams.MONTHLY, choices=list(teams.PERIODS))
+    s.add_argument("--soft", action="store_const", const=True, default=None,
+                   help="warn at the limit instead of refusing")
+    s.set_defaults(func=cmd_team)
+
+    s = sub.add_parser("spend", help="what each team spent, and against what budget")
+    s.add_argument("--days", type=float, default=None)
+    s.set_defaults(func=cmd_spend)
 
     s = sub.add_parser("doctor", help="check the installation")
     s.set_defaults(func=cmd_doctor)

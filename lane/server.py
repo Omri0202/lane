@@ -30,7 +30,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from . import (audit, catalog, classify, config, keys, ledger, lanes,
-               policy, providers)
+               policy, providers, teams)
 from .lanes import Lane
 from .providers import ProviderError
 
@@ -177,6 +177,7 @@ async def chat_completions(request: Request):
     messages = body.get("messages") or []
     tools = body.get("tools")
     stream = bool(body.get("stream"))
+    budget_note = ""
 
     mode, forced_lane, pinned = _parse_model_field(body.get("model", "auto"))
     header_mode = request.headers.get("x-lane-mode")
@@ -193,6 +194,29 @@ async def chat_completions(request: Request):
     except policy.NoModelAvailable as exc:
         return _error(503, str(exc), "service_unavailable")
 
+    # Whose budget is this? Only asked once a team exists — before that LANE
+    # is a personal tool and demanding a header would be friction for nobody.
+    team = None
+    if teams.enabled():
+        team = teams.authenticate(request.headers.get("authorization"))
+        if team is None:
+            return _error(
+                401,
+                "this LANE requires a team key. Ask whoever runs it for one, "
+                "and send it as `Authorization: Bearer lane-sk-...`.",
+                "authentication_error")
+
+        # Charge the estimate against the budget BEFORE calling, so a ceiling
+        # cannot be stepped over by one large request. A budget crossed once
+        # per period is not a ceiling.
+        estimate = decision.model.cost(decision.est_prompt_tokens,
+                                       int(body.get("max_tokens") or 1024))
+        ok, note = teams.check(team, estimate)
+        if not ok:
+            return _error(402, note, "budget_exceeded")
+        if note:
+            budget_note = note
+
     guard = config.get("max_cost_per_request") or 0.0
     if guard:
         worst = decision.model.cost(decision.est_prompt_tokens,
@@ -206,15 +230,17 @@ async def chat_completions(request: Request):
                 f"`lane config set max_cost_per_request <amount>` or 0 to "
                 f"disable.", "cost_limit_exceeded")
 
+    team_id = team["id"] if team else None
     if stream:
-        return await _stream_response(decision, body, started)
-    return await _json_response(decision, body, started)
+        return await _stream_response(decision, body, started, team=team_id)
+    return await _json_response(decision, body, started, team=team_id)
 
 
 _MAX_ATTEMPTS = 3
 
 
-async def _json_response(decision: policy.Decision, body: dict, started: float):
+async def _json_response(decision: policy.Decision, body: dict,
+                         started: float, team: str | None = None):
     """Call the chosen model, routing around providers that turn out to be dead.
 
     Three distinct failure kinds, three different responses:
@@ -265,7 +291,7 @@ async def _json_response(decision: policy.Decision, body: dict, started: float):
             ledger.record(lane=current.lane, mode=current.mode,
                           model=model.id, provider=model.provider,
                           in_tokens=0, out_tokens=0, ok=False,
-                          error=str(exc), tier=str(current.tier),
+                          error=str(exc), tier=str(current.tier), team=team,
                           latency_ms=int((time.perf_counter() - started) * 1000))
             if exc.provider_fatal:
                 dead_providers.add(model.provider)
@@ -277,9 +303,9 @@ async def _json_response(decision: policy.Decision, body: dict, started: float):
         ledger.record(lane=current.lane, mode=current.mode, model=model.id,
                       provider=model.provider,
                       in_tokens=usage.get("in", 0), out_tokens=usage.get("out", 0),
-                      tier=str(current.tier), margin=current.margin,
+                      tier=str(current.tier), margin=current.margin, team=team,
                       latency_ms=int((time.perf_counter() - started) * 1000))
-        await _maybe_audit(current, body, result, usage)
+        await _maybe_audit(current, body, result, usage, team=team)
         return JSONResponse(content=result, headers=_headers(current))
 
     if last and last.provider_fatal:
@@ -298,7 +324,8 @@ async def _json_response(decision: policy.Decision, body: dict, started: float):
 
 
 async def _maybe_audit(decision: policy.Decision, body: dict,
-                       result: dict, usage: dict) -> None:
+                       result: dict, usage: dict,
+                       team: str | None = None) -> None:
     """Answer the same request on the baseline model, for the record.
 
     Runs AFTER the user's answer is settled and never touches it. The point of
@@ -348,7 +375,7 @@ async def _maybe_audit(decision: policy.Decision, body: dict,
         # other, marked so it is never mistaken for traffic the user asked for.
         ledger.record(lane=decision.lane, mode="audit", model=base.id,
                       provider=base.provider, in_tokens=s_in, out_tokens=s_out,
-                      source="audit")
+                      source="audit", team=team)
     except Exception:
         pass
 
@@ -364,7 +391,7 @@ def _swap(decision: policy.Decision, model) -> policy.Decision:
 
 
 async def _open_stream(decision: policy.Decision, body: dict, usage: dict,
-                       started: float):
+                       started: float, team: str | None = None):
     """Get a provider actually streaming, routing around ones that refuse.
 
     The subtlety is WHEN a stream can be abandoned. Once real content has
@@ -443,11 +470,11 @@ async def _open_stream(decision: policy.Decision, body: dict, usage: dict,
 
 
 async def _stream_response(decision: policy.Decision, body: dict,
-                           started: float):
+                           started: float, team: str | None = None):
     usage: dict = {}
     try:
         current, first, agen = await _open_stream(decision, body, usage,
-                                                  started)
+                                                  started, team=team)
     except ProviderError as exc:
         detail = str(exc)
         if exc.provider_fatal:
@@ -474,7 +501,7 @@ async def _stream_response(decision: policy.Decision, body: dict,
                 lane=current.lane, mode=current.mode,
                 model=current.model.id, provider=current.model.provider,
                 in_tokens=usage.get("in", 0), out_tokens=usage.get("out", 0),
-                tier=str(current.tier), margin=current.margin,
+                tier=str(current.tier), margin=current.margin, team=team,
                 ok=ok, error=err, streamed=True,
                 latency_ms=int((time.perf_counter() - started) * 1000))
 
