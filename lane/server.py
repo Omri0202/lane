@@ -191,13 +191,53 @@ async def chat_completions(request: Request):
     return await _json_response(decision, body, started)
 
 
-async def _json_response(decision: policy.Decision, body: dict, started: float):
-    usage: dict = {}
-    attempts = [decision.model] + list(decision.runners_up)
-    last: ProviderError | None = None
+_MAX_ATTEMPTS = 3
 
-    for attempt, model in enumerate(attempts[:3]):
-        current = decision if attempt == 0 else _swap(decision, model)
+
+async def _json_response(decision: policy.Decision, body: dict, started: float):
+    """Call the chosen model, routing around providers that turn out to be dead.
+
+    Three distinct failure kinds, three different responses:
+
+      provider-fatal   A bad key, an empty credit balance, a suspended account.
+                       Not a property of the request, so retrying a different
+                       model owned by the same account is pure waste. The whole
+                       PROVIDER is excluded and the lane is re-chosen without
+                       it.
+      transient        Overloaded, rate-limited, a gateway blip. Worth another
+                       model's money.
+      bad request      A 400 that means what it says. It will be a 400
+                       everywhere; returned immediately.
+    """
+    usage: dict = {}
+    dead_providers: set[str] = set()
+    tried: list[str] = []
+    last: ProviderError | None = None
+    current = decision
+    want_output = int(body.get("max_tokens") or 1024)
+
+    for attempt in range(_MAX_ATTEMPTS):
+        if attempt:
+            pool = [m for m in catalog.usable()
+                    if m.provider not in dead_providers and m.id not in tried]
+            if not pool:
+                break
+            try:
+                current = policy.choose(
+                    decision.lane, mode=decision.mode, models=pool,
+                    prompt_tokens=decision.est_prompt_tokens,
+                    want_output=want_output)
+            except policy.NoModelAvailable:
+                break
+            current.tier = decision.tier
+            current.margin = decision.margin
+            current.degraded = True
+            current.degraded_note = (
+                f"{', '.join(sorted(dead_providers))} unavailable"
+                if dead_providers else "first choice was unavailable")
+
+        model = current.model
+        tried.append(model.id)
         try:
             result = await _call(current, body, usage)
         except ProviderError as exc:
@@ -207,9 +247,10 @@ async def _json_response(decision: policy.Decision, body: dict, started: float):
                           in_tokens=0, out_tokens=0, ok=False,
                           error=str(exc), tier=str(current.tier),
                           latency_ms=int((time.perf_counter() - started) * 1000))
-            # Only a transient failure is worth another model's money. A 400 is
-            # a bad request and will be bad for every model in the list.
-            if exc.status not in _RETRYABLE or attempt == len(attempts[:3]) - 1:
+            if exc.provider_fatal:
+                dead_providers.add(model.provider)
+                continue
+            if exc.status not in _RETRYABLE:
                 return _error(exc.status, str(exc), "upstream_error")
             continue
 
@@ -220,8 +261,19 @@ async def _json_response(decision: policy.Decision, body: dict, started: float):
                       latency_ms=int((time.perf_counter() - started) * 1000))
         return JSONResponse(content=result, headers=_headers(current))
 
+    if last and last.provider_fatal:
+        # Say what to DO about it. "anthropic returned 400" sends people to
+        # debug the proxy; naming the account problem and the escape hatch does
+        # not.
+        return _error(
+            last.status,
+            f"{str(last)} — every provider LANE could reach for this request "
+            f"is unavailable. Turn one off permanently with: "
+            f"lane config disabled_providers {','.join(sorted(dead_providers))}",
+            "upstream_error")
     return _error(last.status if last else 502,
-                  str(last) if last else "no provider answered", "upstream_error")
+                  str(last) if last else "no provider answered",
+                  "upstream_error")
 
 
 def _swap(decision: policy.Decision, model) -> policy.Decision:

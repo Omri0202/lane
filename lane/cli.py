@@ -181,6 +181,25 @@ def cmd_keys(args) -> int:
 
 # ── lane models ──────────────────────────────────────────────────────────────
 
+def _reachable(model_id: str, live: set) -> bool:
+    """Is this catalog id usable, given what the provider listed?
+
+    Not the same as being IN the list. Anthropic lists dated snapshots
+    (claude-haiku-4-5-20251001) while its API happily accepts the undated
+    alias (claude-haiku-4-5) — so a literal membership test hid a model the
+    user could use perfectly well. Hiding a working model is the worse error
+    here: an unreachable one merely fails loudly when tried, but a hidden one
+    silently never gets chosen.
+    """
+    return model_id in live or any(o.startswith(model_id + "-") for o in live)
+
+
+def _is_snapshot_of(offered: str, known: set) -> bool:
+    """The mirror image: do not report a dated snapshot as a new discovery
+    when the catalog already carries its alias."""
+    return any(offered.startswith(k + "-") for k in known)
+
+
 async def _sync() -> int:
     have = keys.present()
     if not have:
@@ -199,12 +218,14 @@ async def _sync() -> int:
             continue
 
         mine = {m.id for m in catalog.all_models() if m.provider == provider}
-        missing = sorted(mine - live)
-        extra = sorted(live - known)
+        missing = sorted(m for m in mine if not _reachable(m, live))
+        extra = sorted(i for i in live
+                       if i not in known and not _is_snapshot_of(i, known))
         unreachable += missing
         discovered += [(provider, m) for m in extra]
+        reachable = sum(1 for m in mine if _reachable(m, live))
         print(f"  {c('✓', _G)} {provider}: {len(live)} models offered, "
-              f"{len(mine & live)} of yours reachable")
+              f"{reachable}/{len(mine)} of yours reachable")
 
     if unreachable:
         catalog.mark_unavailable(unreachable)

@@ -184,6 +184,65 @@ def test_a_transient_failure_falls_back_to_the_next_model(monkeypatch):
     assert len(fake.calls) > 1, "should have tried a runner-up"
 
 
+@pytest.mark.parametrize("status,detail", [
+    (401, "invalid x-api-key"),
+    (403, "account suspended"),
+    (400, "Your credit balance is too low to access the Anthropic API."),
+    (429, "You exceeded your current quota, please check your billing"),
+])
+def test_a_dead_account_routes_to_another_provider(monkeypatch, status, detail):
+    """The failure that made LANE unusable on a free tier.
+
+    A Groq key that works plus an Anthropic account with no credits sent every
+    REASONING request to Anthropic — its models are the only ones clearing the
+    bar — where it failed, without ever trying the provider that would have
+    answered. A billing failure is a fact about the provider, not the request.
+
+    Note the 400 and the 429: providers disagree about the status code for "you
+    cannot pay", so the code alone cannot be the test.
+    """
+    working = Model(id="t-other", provider="groq", display="T Other", tier=60,
+                    in_price=0.1, out_price=0.4, context=200_000,
+                    max_output=8192)
+    monkeypatch.setattr(catalog, "usable", lambda *a, **k: POOL + [working])
+    monkeypatch.setattr(keys, "present", lambda: ["anthropic", "groq"])
+
+    calls = []
+
+    class Split:
+        async def complete(self, b, model_id, key, **kw):
+            calls.append(model_id)
+            if model_id != working.id:
+                raise ProviderError("anthropic", status, detail)
+            return {"id": "x", "object": "chat.completion", "created": 0,
+                    "model": model_id,
+                    "choices": [{"index": 0, "finish_reason": "stop",
+                                 "message": {"role": "assistant",
+                                             "content": "ok"}}],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1,
+                              "total_tokens": 2}}
+
+    monkeypatch.setattr(server.providers, "get", lambda p: Split())
+    r = TestClient(server.app).post("/v1/chat/completions",
+                                    json=body("lane-perf"))
+    assert r.status_code == 200, f"should have crossed to groq; tried {calls}"
+    assert r.headers["x-lane-model"] == working.id
+    assert r.headers["x-lane-provider"] == "groq"
+
+
+def test_a_dead_provider_is_not_retried_model_by_model(monkeypatch):
+    """Excluding the PROVIDER, not just the model — otherwise a three-model
+    fallback burns all three attempts inside one dead account."""
+    fake = FakeProvider(fail_with=ProviderError("anthropic", 401, "bad key"))
+    monkeypatch.setattr(server.providers, "get", lambda p: fake)
+    r = TestClient(server.app).post("/v1/chat/completions",
+                                    json=body("lane-perf"))
+    assert r.status_code == 401
+    assert len(fake.calls) == 1, (
+        f"tried {len(fake.calls)} models on one dead account")
+    assert "disabled_providers" in r.json()["error"]["message"]
+
+
 def test_failures_are_recorded_too(monkeypatch):
     fake = FakeProvider(fail_with=ProviderError("anthropic", 400, "nope"))
     monkeypatch.setattr(server.providers, "get", lambda p: fake)

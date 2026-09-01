@@ -238,36 +238,6 @@
       "notes": "Same family as the 120B, much quicker to first token."
     },
     {
-      "id": "llama-3.3-70b-versatile",
-      "provider": "groq",
-      "display": "Llama 3.3 70B",
-      "tier": 72,
-      "in_price": 0.59,
-      "out_price": 0.79,
-      "context": 131072,
-      "max_output": 32768,
-      "vision": false,
-      "tools": true,
-      "speed": 585,
-      "sampling": true,
-      "notes": "A genuinely different prose voice from the gpt-oss family."
-    },
-    {
-      "id": "llama-3.1-8b-instant",
-      "provider": "groq",
-      "display": "Llama 3.1 8B",
-      "tier": 45,
-      "in_price": 0.05,
-      "out_price": 0.08,
-      "context": 131072,
-      "max_output": 8192,
-      "vision": false,
-      "tools": true,
-      "speed": 864,
-      "sampling": true,
-      "notes": "Fastest sustained output by a wide margin. Short replies only."
-    },
-    {
       "id": "qwen/qwen3.6-27b",
       "provider": "groq",
       "display": "Qwen3.6 27B",
@@ -281,6 +251,36 @@
       "speed": 472,
       "sampling": true,
       "notes": "The ONLY model on Groq that reads images \u2014 so it is the whole vision lane when Groq is your only provider."
+    },
+    {
+      "id": "qwen/qwen3.8-27b",
+      "provider": "groq",
+      "display": "Qwen3.8 27B",
+      "tier": 64,
+      "in_price": 0.29,
+      "out_price": 0.59,
+      "context": 131072,
+      "max_output": 32768,
+      "vision": false,
+      "tools": true,
+      "speed": 470,
+      "sampling": true,
+      "notes": "Successor to qwen3.6-27b. vision left False deliberately: the 3.6 is the VERIFIED image reader, and claiming vision this model may not have would fail requests that currently work."
+    },
+    {
+      "id": "groq/compound-mini",
+      "provider": "groq",
+      "display": "Compound Mini",
+      "tier": 65,
+      "in_price": 0.15,
+      "out_price": 0.6,
+      "context": 131072,
+      "max_output": 8192,
+      "vision": false,
+      "tools": true,
+      "speed": 440,
+      "sampling": true,
+      "notes": "Searches the web and runs code itself, replacing a multi-step agent loop. Its sibling groq/compound is excluded \u2014 G.I.L. measured it returning no content when streaming."
     }
   ]
 }

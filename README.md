@@ -275,9 +275,13 @@ every figure LANE reports real.
   Anthropic-shaped `/v1/messages` endpoint. Adding one is the clearest next
   step; all the translation machinery already exists in `lane/translate.py`,
   pointed the other way.
-- **Streaming does not fall back.** Once the first byte is on the wire, quietly
-  restarting on a different model would splice two answers together. A stream
-  that fails mid-flight fails visibly.
+- **Streaming does not fall back.** Non-streaming requests route around a
+  provider that turns out to be dead — a bad key, an empty credit balance, a
+  suspended account are facts about the *provider*, not the request, so LANE
+  excludes it and re-picks (you get `x-lane-degraded: anthropic unavailable`
+  and an answer). Streaming cannot do this: once the first byte is on the wire,
+  quietly restarting on a different model would splice two answers together. A
+  stream that fails mid-flight fails visibly.
 - **Only the last user turn is classified.** Letting a long technical history
   outvote the actual question is how a router bills "thanks" at reasoning rates.
 - **Capability scores are judgements, not benchmarks.** `tier` in the catalog is

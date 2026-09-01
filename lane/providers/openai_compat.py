@@ -101,15 +101,31 @@ class OpenAICompatProvider:
             if r.status_code >= 400:
                 raise ProviderError(self.name, r.status_code, r.text)
             data = r.json().get("data") or []
-            # Gemini returns ids like "models/gemini-2.5-pro"; the catalog and
-            # the chat endpoint both use the bare name.
-            return [str(m.get("id", "")).split("/")[-1] for m in data
-                    if m.get("id")]
+            ids = [str(m["id"]) for m in data if m.get("id")]
+            if self.name == "google":
+                # Gemini alone returns ids like "models/gemini-2.5-pro" while
+                # its chat endpoint wants the bare name. Stripping that prefix
+                # for EVERY provider was a real bug: on Groq the vendor prefix
+                # is part of the id, so "openai/gpt-oss-120b" was compared as
+                # "gpt-oss-120b", matched nothing, and the sync concluded the
+                # user could not reach a single model they were in fact
+                # already using.
+                ids = [i.split("/")[-1] for i in ids]
+            return ids
 
 
 class ProviderError(RuntimeError):
     """A provider refused the request. Carries enough to hand back verbatim —
     a proxy that rewrites the upstream error makes debugging impossible."""
+
+    #: Substrings that mean "this account cannot pay", wherever they appear.
+    #: Providers disagree about the status code for it — Anthropic returns 400
+    #: for an exhausted credit balance, OpenAI returns 429 for an exceeded
+    #: quota — so the code alone cannot distinguish "this request was bad" from
+    #: "this provider will refuse everything you send it".
+    _BILLING = ("credit balance", "billing", "insufficient_quota",
+                "exceeded your current quota", "payment required",
+                "spending limit", "out of credits")
 
     def __init__(self, provider: str, status: int, detail: str):
         self.provider = provider
@@ -121,7 +137,27 @@ class ProviderError(RuntimeError):
             message = (parsed.get("error") or {}).get("message") or detail
         except Exception:
             pass
+        self.message = message
         super().__init__(f"{provider} returned {status}: {message[:500]}")
+
+    @property
+    def provider_fatal(self) -> bool:
+        """Will this provider refuse EVERY request, not just this one?
+
+        A bad key, a suspended account, or an empty credit balance is not a
+        property of the request — it is a property of the provider, and the
+        right response is to route around it rather than to retry the same
+        request at a different model owned by the same dead account.
+
+        Getting this wrong is not academic. A free-tier Groq key plus an
+        Anthropic account with no credits routes every reasoning request to
+        Anthropic (its models are the only ones that clear the bar), fails,
+        and never tries the provider that would have answered.
+        """
+        if self.status in (401, 402, 403):
+            return True
+        low = (self.message or self.detail or "").lower()
+        return any(sig in low for sig in self._BILLING)
 
 
 def _sniff_usage(line: str, usage: dict) -> None:
