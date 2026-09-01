@@ -24,6 +24,7 @@ class Lane:
     REASONING = "reasoning"
     VISION = "vision"
     TOOLS = "tools"
+    IMAGE_GEN = "image_gen"
 
 
 #: floor      — minimum capability score a model must have to serve this lane.
@@ -82,6 +83,18 @@ LANES: dict[str, dict] = {
         "blurb": "An image is attached. Only models that can read images are "
                  "candidates at all.",
     },
+    Lane.IMAGE_GEN: {
+        "label": "Make an image",
+        "floor": 0,
+        "needs": ("image_out",),
+        "kind": "image",
+        "prefers": "depth",
+        "blurb": "Asking for a picture to be DRAWN, not described. The one "
+                 "lane where the usual advice is useless: no amount of "
+                 "capability makes a text model produce an image, so the only "
+                 "honest answer when the current site has no image model is "
+                 "to say which site does.",
+    },
     Lane.TOOLS: {
         "label": "Tools",
         "floor": 70,
@@ -92,6 +105,21 @@ LANES: dict[str, dict] = {
                  "floor is high because a model that emits malformed tool JSON "
                  "costs more in retries than it saves per token.",
     },
+}
+
+#: Roughly how many tokens a reply in each lane runs to. Output is priced 4-5x
+#: higher than input on every provider here, so an estimate that counted only
+#: the prompt would be wrong by an order of magnitude and always in the
+#: flattering direction. Measured loosely, and always presented as an estimate.
+EXPECTED_OUTPUT = {
+    Lane.TRIVIAL: 30,
+    Lane.SIMPLE: 120,
+    Lane.GENERAL: 550,
+    Lane.LONGFORM: 900,
+    Lane.REASONING: 1200,
+    Lane.VISION: 400,
+    Lane.TOOLS: 600,
+    Lane.IMAGE_GEN: 0,
 }
 
 DEFAULT_LANE = Lane.GENERAL
@@ -117,3 +145,12 @@ def needs(lane: str) -> tuple:
 
 def label(lane: str) -> str:
     return spec(lane)["label"]
+
+
+def kind(lane: str) -> str:
+    """"chat" or "image" — which sort of model can serve this at all."""
+    return spec(lane).get("kind", "chat")
+
+
+def expected_output(lane: str) -> int:
+    return EXPECTED_OUTPUT.get(lane, 550)

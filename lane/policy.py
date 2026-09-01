@@ -107,9 +107,17 @@ def estimate_tokens(messages: list[dict]) -> int:
 
 def feasible(models: list[Model], *, need_vision: bool = False,
              need_tools: bool = False, prompt_tokens: int = 0,
-             want_output: int = 1024) -> list[Model]:
+             want_output: int = 1024, kind: str = "chat") -> list[Model]:
     out = []
     for m in models:
+        # The hardest constraint of the lot, and the only one that cannot be
+        # traded against anything: a text model does not draw, and an image
+        # model does not hold a conversation.
+        if m.kind != kind:
+            continue
+        if kind == "image":
+            out.append(m)
+            continue
         if need_vision and not m.vision:
             continue
         if need_tools and not m.tools:
@@ -165,15 +173,18 @@ def choose(lane: str, *, mode: str | None = None,
     if need_tools is None:
         need_tools = "tools" in need
 
+    want_kind = lanes.kind(lane)
     cand = feasible(pool, need_vision=need_vision, need_tools=need_tools,
-                    prompt_tokens=prompt_tokens, want_output=want_output)
+                    prompt_tokens=prompt_tokens, want_output=want_output,
+                    kind=want_kind)
     degraded, note = False, ""
 
     if not cand:
         # Relax the output-size requirement first: it is the constraint most
         # likely to be over-specified by a client that always sends max_tokens.
         cand = feasible(pool, need_vision=need_vision, need_tools=need_tools,
-                        prompt_tokens=prompt_tokens, want_output=0)
+                        prompt_tokens=prompt_tokens, want_output=0,
+                        kind=want_kind)
         if cand:
             degraded, note = True, "no model could produce an answer that long"
     if not cand:

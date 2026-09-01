@@ -490,6 +490,64 @@ def _cors(origin: str | None) -> dict:
     return {}
 
 
+#: Which site a provider corresponds to, for the times the honest advice is
+#: "not here".
+_PROVIDER_SITE = {"anthropic": "Claude", "openai": "ChatGPT",
+                  "google": "Gemini", "groq": "Groq", "openrouter": "OpenRouter"}
+
+
+def _price(x: float) -> str:
+    if x <= 0:
+        return "free"
+    if x < 0.01:
+        return f"${x:.4f}"
+    if x < 1:
+        return f"${x:.3f}"
+    return f"${x:,.2f}"
+
+
+def _explain(lane: str, rec, top, factor: float, images: bool,
+             elsewhere: list) -> str:
+    """One sentence saying why this recommendation is the right one.
+
+    The numbers are already on screen; this says what they MEAN. "Haiku, $0.0004"
+    is a fact. "There is nothing here to reason about, so the difference buys
+    you nothing" is a reason to click the dropdown.
+    """
+    if images and elsewhere:
+        first = elsewhere[0]
+        return (f"No Claude model draws pictures — it can only read them. "
+                f"{first['site']} does this with {first['display']} for about "
+                f"{_price(first['cost'])} an image."
+                if rec is None else "")
+    if images and rec is not None:
+        return (f"This needs an image generator, not a chat model. "
+                f"{rec.display} is billed per picture, not per token.")
+
+    if rec is not None and top is not None and rec.id == top.id:
+        return ("Nothing cheaper clears the bar for this one — the strongest "
+                "model is the right call.")
+
+    by_lane = {
+        "trivial": "There is nothing here to think about. The smallest model "
+                   "produces the same reply for {factor}x less.",
+        "simple": "This is recall, not reasoning. Every model knows it; only "
+                  "one of them charges {factor}x more to say so.",
+        "general": "An explanation, not a hard problem. The mid model reads "
+                   "the same and costs {factor}x less.",
+        "longform": "Judged on voice rather than correctness, where the gap "
+                    "between models is smallest — and {factor}x cheaper.",
+        "reasoning": "This one is worth capability, so the floor is high. Even "
+                     "so, you do not need the very top: {factor}x less buys "
+                     "the same answer.",
+        "vision": "Reading an image needs a vision model, and the cheapest "
+                  "one that can see is {factor}x lighter than the best.",
+        "tools": "Tool calls are judged on well-formed output, not "
+                 "brilliance. {factor}x less gets you that.",
+    }
+    return by_lane.get(lane, "").format(factor=factor)
+
+
 @app.options("/lane/advise")
 async def advise_preflight(request: Request):
     return Response(status_code=204,
@@ -498,17 +556,23 @@ async def advise_preflight(request: Request):
 
 @app.post("/lane/advise")
 async def advise(request: Request):
-    """What model should the person typing this pick, right now?
+    """What should the person typing this pick, and what will it cost them?
 
-    Different from /lane/route in two ways that matter.
+    Three things this answers that /lane/route does not.
 
-    It ranks over the models of ONE provider — whichever site they are typing
-    into — because a recommendation they cannot act on is noise.
+    WHICH KIND of request it is, not merely how hard — "create a picture of
+    Germany" is not a difficult text request, it is not a text request at all,
+    and recommending a chat model for it is not a worse answer but an
+    impossible one. When the current site cannot do the job, the right advice
+    is to name the site that can.
 
-    And it reports a MULTIPLE, not a price. Someone in claude.ai is spending a
-    subscription allowance, not dollars per token; "about 25x cheaper than
-    Opus" is a true and useful statement in both worlds, where "$0.0004" is
-    only true in one of them.
+    WHAT IT COSTS, per option, for this specific message — prompt tokens
+    measured, reply length estimated from the lane, because output is priced
+    four to five times higher than input and an estimate that ignored it would
+    be wrong in the flattering direction every time.
+
+    WHY, in a sentence. The numbers are already on screen; a person deciding
+    whether to touch the dropdown needs to know what they mean.
     """
     cors = _cors(request.headers.get("origin"))
     try:
@@ -518,51 +582,89 @@ async def advise(request: Request):
                             headers=cors)
 
     text = (body.get("text") or "").strip()
-    provider = _SITE_PROVIDER.get(body.get("site") or "")
+    site = body.get("site") or ""
+    provider = _SITE_PROVIDER.get(site)
     messages = [{"role": "user", "content": text}]
     verdict = classify.classify(messages)
-    tokens = policy.estimate_tokens(messages)
+    lane = verdict["lane"]
 
-    # Every model the SITE offers, not every model LANE has a key for. The
-    # person is choosing from a dropdown in a web app; whether an API key
-    # happens to be configured here has nothing to do with it.
-    pool = [m for m in catalog.all_models()
-            if not provider or m.provider == provider]
-    if not pool:
-        return JSONResponse({"lane": verdict["lane"], "models": []},
-                            headers=cors)
+    in_tokens = policy.estimate_tokens(messages)
+    out_tokens = lanes.expected_output(lane)
+    is_image = lanes.kind(lane) == "image"
 
     out = {
-        "lane": verdict["lane"],
-        "lane_label": lanes.label(verdict["lane"]),
+        "lane": lane,
+        "lane_label": lanes.label(lane),
         "reason": verdict["reason"],
         "tier": verdict["tier"],
         "took_us": verdict["took_us"],
         "words": len(text.split()),
-        "picks": {},
+        "kind": lanes.kind(lane),
+        "est_in": in_tokens,
+        "est_out": out_tokens,
+        "options": [],
+        "elsewhere": [],
     }
+
+    here = [m for m in catalog.all_models()
+            if not provider or m.provider == provider]
+
+    def cost_of(m):
+        return m.cost_for(in_tokens, out_tokens)
+
+    # Can this site do the job at all?
+    servable = [m for m in here if m.kind == lanes.kind(lane)]
+    if not servable:
+        # Name who can. This is the one case where recommending a different
+        # site is help rather than a chore.
+        for m in catalog.all_models():
+            if m.kind != lanes.kind(lane):
+                continue
+            out["elsewhere"].append({
+                "site": _PROVIDER_SITE.get(m.provider, m.provider),
+                "provider": m.provider, "id": m.id, "display": m.display,
+                "cost": round(cost_of(m), 6)})
+        out["elsewhere"].sort(key=lambda e: e["cost"])
+        out["unavailable_here"] = True
+        out["site_name"] = _PROVIDER_SITE.get(provider, site or "this site")
+        out["explain"] = _explain(lane, None, None, 1.0, is_image,
+                                  out["elsewhere"])
+        return JSONResponse(out, headers=cors)
+
+    out["unavailable_here"] = False
+    seen = set()
     for mode in config.MODES:
         try:
-            d = policy.choose(verdict["lane"], mode=mode, models=pool,
-                              prompt_tokens=tokens, want_output=1024)
+            d = policy.choose(lane, mode=mode, models=here,
+                              prompt_tokens=in_tokens,
+                              want_output=max(out_tokens, 512))
         except policy.NoModelAvailable:
             continue
-        out["picks"][mode] = {"id": d.model.id, "display": d.model.display,
-                              "tier": d.model.tier,
-                              "degraded": d.degraded}
+        row = {"mode": mode, "id": d.model.id, "display": d.model.display,
+               "tier": d.model.tier, "degraded": d.degraded,
+               "cost": round(cost_of(d.model), 6),
+               "per_image": d.model.kind == "image"}
+        out["options"].append(row)
+        seen.add(d.model.id)
 
-    top = max(pool, key=lambda m: m.tier)
-    rec_id = (out["picks"].get(config.get("mode"))
-              or out["picks"].get(config.MODE_BALANCED) or {}).get("id")
-    rec = catalog.by_id(rec_id) or top
-    out["recommend"] = {"id": rec.id, "display": rec.display, "tier": rec.tier}
-    out["top"] = {"id": top.id, "display": top.display, "tier": top.tier}
+    top = max(servable, key=lambda m: m.tier)
+    default_mode = config.get("mode")
+    rec_row = next((o for o in out["options"] if o["mode"] == default_mode),
+                   out["options"][0] if out["options"] else None)
+    rec = catalog.by_id(rec_row["id"]) if rec_row else top
 
-    # How much lighter the recommendation is than reaching for the best model
-    # every time. 1.0 means the recommendation IS the top model.
-    rec_price, top_price = rec.blended(), top.blended()
-    out["factor"] = round(top_price / rec_price, 1) if rec_price else 1.0
+    rec_cost, top_cost = cost_of(rec), cost_of(top)
+    factor = round(top_cost / rec_cost, 1) if rec_cost > 0 else 1.0
+
+    out["recommend"] = {"id": rec.id, "display": rec.display, "tier": rec.tier,
+                        "cost": round(rec_cost, 6),
+                        "per_image": rec.kind == "image"}
+    out["top"] = {"id": top.id, "display": top.display, "tier": top.tier,
+                  "cost": round(top_cost, 6)}
+    out["factor"] = factor
     out["is_top"] = rec.id == top.id
+    out["saving"] = round(top_cost - rec_cost, 6)
+    out["explain"] = _explain(lane, rec, top, factor, is_image, [])
     return JSONResponse(out, headers=cors)
 
 
@@ -596,8 +698,12 @@ async def advisor_script():
     if not path.is_file():
         return Response("// extension not present in this install", status_code=404,
                         media_type="application/javascript")
+    # Never cached: this route exists so a change to the panel can be seen by
+    # reloading, and a browser holding yesterday's copy turns every edit into a
+    # false negative.
     return Response(path.read_text(encoding="utf-8"),
-                    media_type="application/javascript")
+                    media_type="application/javascript",
+                    headers={"Cache-Control": "no-store"})
 
 
 @app.get("/dev/advisor", response_class=HTMLResponse)

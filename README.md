@@ -174,23 +174,60 @@ typing, on your machine, and tells you which model this particular message
 wants — **before you send it**, while there is still time to act on it.
 
 ```
-┌──────────────────────────────┐
-│ L.A.N.E.                   × │
-├──────────────────────────────┤
-│ REASONING     13 words       │
-│ how the message reads        │
-│ ─────────────────────────    │
-│ USE ON CLAUDE                │
-│ Claude Sonnet 5              │
-│ ~5× cheaper than Fable 5     │
-└──────────────────────────────┘
+┌────────────────────────────────────┐
+│ L.A.N.E.                         × │
+├────────────────────────────────────┤
+│ REASONING       ~15 in · ~1,200 out│
+│ ────────────────────────────────── │
+│ USE ON CLAUDE                      │
+│ Claude Sonnet 5              $0.012│
+│ saves $0.048 · 5x cheaper          │
+│                                    │
+│ SAVE         Sonnet 5        $0.012│
+│ BALANCED     Sonnet 5        $0.012│
+│ PERFORMANCE  Fable 5         $0.060│
+│ ────────────────────────────────── │
+│ This one is worth capability, so   │
+│ the floor is high. Even so, you do │
+│ not need the very top.             │
+└────────────────────────────────────┘
 ```
 
-Type "thanks that worked perfectly" instead and it becomes `SIMPLE → Claude
-Haiku 4.5, ~10× cheaper`. Same box, different sentence, different answer.
+Every number is for **that message**: the prompt is measured, the reply length
+is estimated from the kind of request, and both are priced. Output is billed
+four to five times higher than input everywhere, so an estimate that counted
+only what you typed would understate every request — always in the direction
+that flatters the tool.
 
-It only ever recommends models **that site can actually give you** — advising
-Gemini Flash to somebody sitting in claude.ai is not a saving, it is a chore.
+### It knows what kind of request it is, not just how hard
+
+Ask Claude for a picture and the honest answer is not "use Opus":
+
+```
+┌────────────────────────────────────┐
+│ MAKE AN IMAGE      priced per image│
+│ ────────────────────────────────── │
+│ CLAUDE CAN'T DO THIS               │
+│ ChatGPT   GPT Image 1        $0.040│
+│ Gemini    Imagen 4           $0.040│
+│ ────────────────────────────────── │
+│ No Claude model draws pictures — it│
+│ can only read them.                │
+└────────────────────────────────────┘
+```
+
+No Claude model generates images, so the catalog contains no Anthropic image
+model and the advisor names the site that can. Recommending the strongest chat
+model here would not be a slightly worse answer, it would be an impossible one
+— and obviously so within seconds.
+
+The distinction is the verb, not the noun. "describe this picture", "the image
+is blurry" and "write a function that resizes images" all stay where they
+belong.
+
+Everywhere else it recommends only models **that site can actually give you** —
+advising Gemini Flash to somebody sitting in claude.ai is not a saving, it is a
+chore.
 
 ### Installing it
 

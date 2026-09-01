@@ -46,10 +46,26 @@ class Model:
     #: OpenAI-shaped client sends temperature unprompted, so forwarding it
     #: blindly would make those models permanently unroutable.
     sampling: bool = True
+    #: "chat" or "image". A text model cannot be persuaded into drawing by any
+    #: amount of capability, so this is a hard filter rather than a preference.
+    kind: str = "chat"
+    #: Whether this model can PRODUCE an image. Distinct from `vision`, which
+    #: is about reading one — the two are routinely confused and no Claude
+    #: model has ever had the first.
+    image_out: bool = False
+    #: USD per generated image. Image models are not billed per token, so
+    #: their in/out prices are zero and this carries the real number.
+    per_image: float = 0.0
     notes: str = ""
 
     def cost(self, in_tokens: int, out_tokens: int) -> float:
         return (in_tokens * self.in_price + out_tokens * self.out_price) / 1e6
+
+    def cost_for(self, in_tokens: int, out_tokens: int, images: int = 1) -> float:
+        """What one request of this shape actually costs on this model."""
+        if self.kind == "image":
+            return self.per_image * max(images, 1)
+        return self.cost(in_tokens, out_tokens)
 
     def blended(self, out_ratio: float = 0.25) -> float:
         """A single price number for ranking, assuming output is `out_ratio` of

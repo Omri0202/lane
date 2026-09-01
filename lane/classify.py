@@ -106,6 +106,26 @@ _MATH = re.compile(r"""
   | \b(sin|cos|tan|log|ln|sqrt)\s*\(
 """, re.I | re.X)
 
+#: Asking for a picture to be MADE. This is tier 0 rather than a learned
+#: feature because getting it wrong is not a matter of degree: recommending a
+#: chat model to somebody who wants a picture is not a slightly worse answer,
+#: it is an impossible one, and the phrasing is narrow enough to be caught
+#: exactly.
+#:
+#: The verb is required. "describe this photo", "what is in the picture" and
+#: "the image is blurry" all contain the nouns and none of them is a request
+#: to draw anything.
+_IMAGE_REQ = re.compile(r"""
+    \b(draw|paint|sketch|render|generate|create|make|design|produce|
+       give\s+me|i\s+want|i\s+need|can\s+you\s+(?:make|create|draw|generate))\b
+    [^.?!]{0,60}?
+    \b(image|images|picture|pictures|photo|photos|photograph|logo|logos|
+       illustration|drawing|artwork|poster|icon|icons|banner|wallpaper|
+       thumbnail|mockup|avatar|sticker|painting|portrait|comic|meme)\b
+  | \b(an?\s+(?:image|picture|photo|illustration|drawing|painting|logo)\s+of)\b
+  | \b(text[\s-]?to[\s-]?image|image\s+generation)\b
+""", re.I | re.X)
+
 #: Past this many words the message is a document being worked on, not a
 #: question being asked, whatever its verbs look like.
 _DOC_WORDS = 600
@@ -114,6 +134,11 @@ _DOC_WORDS = 600
 def tier0(text: str) -> tuple[str | None, str]:
     """Deterministic only. Returns (lane, reason) or (None, "")."""
     t = text or ""
+    # Checked first: an image request that also mentions code ("draw a diagram
+    # of my class hierarchy") is still an image request, and sending it to a
+    # reasoning model produces an essay nobody asked for.
+    if _IMAGE_REQ.search(t):
+        return Lane.IMAGE_GEN, "you are asking for a picture to be made"
     if _TRACE.search(t):
         return Lane.REASONING, "the message contains a stack trace"
     if _FENCE.search(t):
