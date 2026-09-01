@@ -53,6 +53,11 @@ class Model:
     #: is about reading one — the two are routinely confused and no Claude
     #: model has ever had the first.
     image_out: bool = False
+    #: Whether this model can search the web as part of answering. On the
+    #: consumer sites this is usually a toggle rather than a model property,
+    #: but on the API it genuinely varies — and a model that cannot look
+    #: answers a "what happened today" question from memory, confidently.
+    web: bool = True
     #: USD per generated image. Image models are not billed per token, so
     #: their in/out prices are zero and this carries the real number.
     per_image: float = 0.0

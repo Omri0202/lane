@@ -164,11 +164,14 @@
   .tag-vision    { background:#06b6d422; color:#0891b2; }
   .tag-tools     { background:#22c55e22; color:#15954c; }
   .tag-image_gen { background:#ec489922; color:#be2e68; }
+  .tag-translate { background:#a855f722; color:#8b3fd4; }
+  .tag-web_search{ background:#0ea5e922; color:#0277b8; }
   @media (prefers-color-scheme: dark) {
     .tag-simple{color:#2dd4bf} .tag-general{color:#7ba2ff}
     .tag-longform{color:#e0b050} .tag-reasoning{color:#a98bff}
     .tag-vision{color:#22d3ee} .tag-tools{color:#4ade80}
-    .tag-image_gen{color:#f472b6}
+    .tag-image_gen{color:#f472b6} .tag-translate{color:#c084fc}
+    .tag-web_search{color:#38bdf8}
   }
 </style>
 <div class="card" id="card">

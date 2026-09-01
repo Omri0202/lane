@@ -311,7 +311,20 @@ A savings figure you can argue with is worth more than one you cannot.
 Every request is sorted into one of seven **lanes**. A lane is a statement about
 what the request needs, made before anything is known about your keys:
 
-`trivial` · `simple` · `general` · `longform` · `reasoning` · `vision` · `tools`
+`trivial` · `simple` · `general` · `longform` · `reasoning` · `translate` ·
+`web_search` · `vision` · `tools` · `image_gen`
+
+The last four are about **capability**, not difficulty, and that difference is
+the point. A slightly-too-cheap model still answers a `general` question. A
+chat model asked for a picture produces no picture; a model without web access
+answers a question about today from a stale memory, confidently. So those four
+are detected deterministically and the capability is a hard filter no mode can
+trade away.
+
+`translate` earns its own lane for the opposite reason: translation into a
+major language is close to solved, so the gap between models is unusually
+small. It carries a **lower** floor than long-form, which is where the saving
+comes from.
 
 Four tiers decide it, each allowed to say *I don't know*:
 

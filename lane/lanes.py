@@ -25,6 +25,8 @@ class Lane:
     VISION = "vision"
     TOOLS = "tools"
     IMAGE_GEN = "image_gen"
+    WEB_SEARCH = "web_search"
+    TRANSLATE = "translate"
 
 
 #: floor      — minimum capability score a model must have to serve this lane.
@@ -83,6 +85,29 @@ LANES: dict[str, dict] = {
         "blurb": "An image is attached. Only models that can read images are "
                  "candidates at all.",
     },
+    Lane.TRANSLATE: {
+        "label": "Translate",
+        "floor": 55,
+        "needs": (),
+        "prefers": "prose",
+        "blurb": "Moving text between human languages. Its own lane because "
+                 "the capability gap between models is unusually small here — "
+                 "translation into a major language is close to solved, so "
+                 "this is one of the few places a cheap model is not a "
+                 "compromise. The floor is lower than long-form for exactly "
+                 "that reason.",
+    },
+    Lane.WEB_SEARCH: {
+        "label": "Look it up",
+        "floor": 60,
+        "needs": ("web",),
+        "prefers": "value",
+        "blurb": "Needs information the model was not trained on. No amount "
+                 "of capability substitutes for being able to search: the "
+                 "strongest model without web access answers confidently from "
+                 "a stale memory, which is worse than the weakest model that "
+                 "can look.",
+    },
     Lane.IMAGE_GEN: {
         "label": "Make an image",
         "floor": 0,
@@ -120,6 +145,8 @@ EXPECTED_OUTPUT = {
     Lane.VISION: 400,
     Lane.TOOLS: 600,
     Lane.IMAGE_GEN: 0,
+    Lane.TRANSLATE: 400,
+    Lane.WEB_SEARCH: 700,
 }
 
 DEFAULT_LANE = Lane.GENERAL
@@ -127,8 +154,12 @@ DEFAULT_LANE = Lane.GENERAL
 #: Order from least to most demanding. Used when a constraint (context length,
 #: missing capability) makes the chosen lane unservable and LANE must find the
 #: nearest lane it can actually serve.
-ORDER = [Lane.TRIVIAL, Lane.SIMPLE, Lane.GENERAL, Lane.LONGFORM,
-         Lane.REASONING]
+#: Ordered by capability floor, which is what "more demanding" has to mean if
+#: the under-routing guard is to be worth anything. Leaving the newer lanes out
+#: of this list silently ranked them as the MOST demanding of all, because the
+#: lookup fell through to the end.
+ORDER = [Lane.TRIVIAL, Lane.SIMPLE, Lane.TRANSLATE, Lane.GENERAL,
+         Lane.WEB_SEARCH, Lane.LONGFORM, Lane.REASONING]
 
 
 def spec(lane: str) -> dict:

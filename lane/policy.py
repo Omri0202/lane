@@ -105,9 +105,16 @@ def estimate_tokens(messages: list[dict]) -> int:
     return max(1, chars // 4)
 
 
-def feasible(models: list[Model], *, need_vision: bool = False,
-             need_tools: bool = False, prompt_tokens: int = 0,
-             want_output: int = 1024, kind: str = "chat") -> list[Model]:
+def feasible(models: list[Model], *, caps: tuple = (),
+             prompt_tokens: int = 0, want_output: int = 1024,
+             kind: str = "chat") -> list[Model]:
+    """Models that CAN serve this, before any question of price or quality.
+
+    Capabilities are checked by name against the model record rather than with
+    a parameter per capability, so adding one to a lane is a change to
+    lanes.py alone. `caps` holds attribute names — "vision", "tools", "web",
+    "image_out" — every one of which must be true.
+    """
     out = []
     for m in models:
         # The hardest constraint of the lot, and the only one that cannot be
@@ -118,9 +125,7 @@ def feasible(models: list[Model], *, need_vision: bool = False,
         if kind == "image":
             out.append(m)
             continue
-        if need_vision and not m.vision:
-            continue
-        if need_tools and not m.tools:
+        if any(not getattr(m, cap, False) for cap in caps):
             continue
         if prompt_tokens and m.context < prompt_tokens * _CONTEXT_HEADROOM:
             continue
@@ -173,8 +178,15 @@ def choose(lane: str, *, mode: str | None = None,
     if need_tools is None:
         need_tools = "tools" in need
 
+    caps = set(need)
+    if need_vision:
+        caps.add("vision")
+    if need_tools:
+        caps.add("tools")
+    caps.discard("image_out")      # expressed by kind, not by attribute
+
     want_kind = lanes.kind(lane)
-    cand = feasible(pool, need_vision=need_vision, need_tools=need_tools,
+    cand = feasible(pool, caps=tuple(sorted(caps)),
                     prompt_tokens=prompt_tokens, want_output=want_output,
                     kind=want_kind)
     degraded, note = False, ""
@@ -182,7 +194,7 @@ def choose(lane: str, *, mode: str | None = None,
     if not cand:
         # Relax the output-size requirement first: it is the constraint most
         # likely to be over-specified by a client that always sends max_tokens.
-        cand = feasible(pool, need_vision=need_vision, need_tools=need_tools,
+        cand = feasible(pool, caps=tuple(sorted(caps)),
                         prompt_tokens=prompt_tokens, want_output=0,
                         kind=want_kind)
         if cand:

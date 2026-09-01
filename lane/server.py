@@ -540,6 +540,13 @@ def _explain(lane: str, rec, top, factor: float, images: bool,
         "reasoning": "This one is worth capability, so the floor is high. Even "
                      "so, you do not need the very top: {factor}x less buys "
                      "the same answer.",
+        "translate": "Translation into a major language is close to solved — "
+                     "this is one of the few places where the cheap model is "
+                     "not a compromise, and it is {factor}x less.",
+        "web_search": "The answer is not in any model's training data, so make "
+                      "sure web search is switched on. Once it is, the model "
+                      "is summarising what it found rather than knowing it, "
+                      "and {factor}x less does that just as well.",
         "vision": "Reading an image needs a vision model, and the cheapest "
                   "one that can see is {factor}x lighter than the best.",
         "tools": "Tool calls are judged on well-formed output, not "

@@ -38,7 +38,8 @@
       "sampling": false,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "claude-opus-5",
@@ -56,7 +57,8 @@
       "sampling": false,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "claude-opus-4-8",
@@ -73,7 +75,8 @@
       "sampling": false,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "claude-sonnet-5",
@@ -91,7 +94,8 @@
       "sampling": false,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "claude-sonnet-4-6",
@@ -109,7 +113,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "claude-haiku-4-5",
@@ -126,7 +131,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gpt-5",
@@ -143,7 +149,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gpt-5-mini",
@@ -160,7 +167,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gpt-5-nano",
@@ -177,7 +185,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gpt-4.1-mini",
@@ -194,7 +203,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gemini-2.5-pro",
@@ -211,7 +221,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gemini-2.5-flash",
@@ -228,7 +239,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gemini-2.5-flash-lite",
@@ -245,7 +257,8 @@
       "sampling": true,
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -263,7 +276,8 @@
       "notes": "Strongest model on Groq's free tier. Proven on this account by G.I.L.",
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": false
     },
     {
       "id": "openai/gpt-oss-20b",
@@ -281,7 +295,8 @@
       "notes": "Same family as the 120B, much quicker to first token.",
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": false
     },
     {
       "id": "qwen/qwen3.6-27b",
@@ -299,7 +314,8 @@
       "notes": "The ONLY model on Groq that reads images \u2014 so it is the whole vision lane when Groq is your only provider.",
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": false
     },
     {
       "id": "qwen/qwen3.8-27b",
@@ -317,7 +333,8 @@
       "notes": "Successor to qwen3.6-27b. vision left False deliberately: the 3.6 is the VERIFIED image reader, and claiming vision this model may not have would fail requests that currently work.",
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": false
     },
     {
       "id": "groq/compound-mini",
@@ -335,7 +352,8 @@
       "notes": "Searches the web and runs code itself, replacing a multi-step agent loop. Its sibling groq/compound is excluded \u2014 G.I.L. measured it returning no content when streaming.",
       "kind": "chat",
       "image_out": false,
-      "per_image": 0.0
+      "per_image": 0.0,
+      "web": true
     },
     {
       "id": "gpt-image-1",
@@ -353,7 +371,8 @@
       "tools": false,
       "speed": 1,
       "sampling": false,
-      "notes": "Priced per image, not per token. Standard 1024x1024; higher quality and larger sizes cost more."
+      "notes": "Priced per image, not per token. Standard 1024x1024; higher quality and larger sizes cost more.",
+      "web": false
     },
     {
       "id": "dall-e-3",
@@ -371,7 +390,8 @@
       "tools": false,
       "speed": 1,
       "sampling": false,
-      "notes": "The older generator. Kept because some accounts still offer only this one."
+      "notes": "The older generator. Kept because some accounts still offer only this one.",
+      "web": false
     },
     {
       "id": "imagen-4",
@@ -389,7 +409,8 @@
       "tools": false,
       "speed": 1,
       "sampling": false,
-      "notes": "Google's image generator, reachable from Gemini."
+      "notes": "Google's image generator, reachable from Gemini.",
+      "web": false
     }
   ]
 }

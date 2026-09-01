@@ -62,7 +62,6 @@ TRAIN: list[tuple[str, str]] = [
     ("who is ada lovelace", Lane.SIMPLE),
     ("what language do they speak in brazil", Lane.SIMPLE),
     ("whats the plural of octopus", Lane.SIMPLE),
-    ("how do you say thank you in japanese", Lane.SIMPLE),
     ("what year was python released", Lane.SIMPLE),
     ("is a tomato a fruit", Lane.SIMPLE),
     ("what does the acronym ram mean", Lane.SIMPLE),
@@ -132,7 +131,6 @@ TRAIN: list[tuple[str, str]] = [
     ("write a product description for this listing", Lane.LONGFORM),
     ("tighten this up its far too wordy", Lane.LONGFORM),
     ("give me a linkedin post about the launch", Lane.LONGFORM),
-    ("translate this paragraph into spanish", Lane.LONGFORM),
     ("write the readme intro for this project", Lane.LONGFORM),
     ("summarize the transcript i pasted below", Lane.LONGFORM),
     ("polish the ending it feels flat", Lane.LONGFORM),
@@ -266,6 +264,47 @@ TRAIN: list[tuple[str, str]] = [
     ("go on then", Lane.TRIVIAL),
     ("skip it", Lane.TRIVIAL),
     ("same", Lane.TRIVIAL),
+    # Porting code is REASONING, not translation. Without these the word
+    # "translate" alone pulled a code question into the translate lane.
+    ("translate this sql query into an orm call", Lane.REASONING),
+    ("convert this python function to javascript", Lane.REASONING),
+    ("port this module from java to kotlin", Lane.REASONING),
+    ("rewrite these bash commands for powershell", Lane.REASONING),
+    ("turn this regex into something readable", Lane.REASONING),
+    # "latest" and "current" in a developer's mouth mean a repository, not the
+    # news. The web_search examples had made both words lean the wrong way.
+    ("show me the latest commit on that branch", Lane.REASONING),
+    ("what is the current value of this variable", Lane.REASONING),
+    ("which version of the library am i on", Lane.REASONING),
+
+
+    # ── translate: between human languages ───────────────────────────────────
+    ("translate this paragraph into spanish", Lane.TRANSLATE),
+    ("how do you say thank you in japanese", Lane.TRANSLATE),
+    ("translate the following into french", Lane.TRANSLATE),
+    ("can you put this in german for me", Lane.TRANSLATE),
+    ("say that in hebrew", Lane.TRANSLATE),
+    ("what is good morning in italian", Lane.TRANSLATE),
+    ("translate this email to portuguese", Lane.TRANSLATE),
+    ("i need this in arabic", Lane.TRANSLATE),
+    ("translate from russian to english", Lane.TRANSLATE),
+    ("how would you say that in korean", Lane.TRANSLATE),
+    ("write this out in dutch please", Lane.TRANSLATE),
+    ("translation of this sentence into greek", Lane.TRANSLATE),
+
+    # ── web_search: information the model cannot already have ────────────────
+    ("what is the latest news about the election", Lane.WEB_SEARCH),
+    ("search the web for reviews of this laptop", Lane.WEB_SEARCH),
+    ("whats the weather forecast for tomorrow", Lane.WEB_SEARCH),
+    ("google it for me", Lane.WEB_SEARCH),
+    ("who won the match last night", Lane.WEB_SEARCH),
+    ("current price of bitcoin", Lane.WEB_SEARCH),
+    ("look up the opening hours", Lane.WEB_SEARCH),
+    ("whats happening in the markets today", Lane.WEB_SEARCH),
+    ("latest release of that library", Lane.WEB_SEARCH),
+    ("todays headlines please", Lane.WEB_SEARCH),
+    ("find me recent articles on this", Lane.WEB_SEARCH),
+    ("is that restaurant still open", Lane.WEB_SEARCH),
 ]
 
 
@@ -330,4 +369,14 @@ HELDOUT: list[tuple[str, str]] = [
     ("translate this bash script into powershell", Lane.REASONING),
     ("work out the break even point given these fixed costs", Lane.REASONING),
     ("review this function for correctness", Lane.REASONING),
+
+    ("render this into swedish", Lane.TRANSLATE),
+    ("whats the polish word for bread", Lane.TRANSLATE),
+    ("convert my message to turkish", Lane.TRANSLATE),
+    ("i want the whole thing in hebrew", Lane.TRANSLATE),
+
+    ("whats the score in the game right now", Lane.WEB_SEARCH),
+    ("any news on the merger", Lane.WEB_SEARCH),
+    ("look this up online for me", Lane.WEB_SEARCH),
+    ("todays exchange rate for the shekel", Lane.WEB_SEARCH),
 ]
