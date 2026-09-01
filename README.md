@@ -438,6 +438,78 @@ make that failure impossible to miss again.
 
 ---
 
+## Proving it — the quality audit
+
+Every cost router makes the same claim and none of them proves it: that the
+smaller model answered as well as the expensive one would have. The claim is
+unfalsifiable in normal use, because the expensive answer never existed. So the
+question that decides whether anyone adopts cost routing — **"will quality
+drop?"** — can only be met with assurances, and assurances are worth nothing to
+somebody signing off a budget.
+
+LANE measures it, on your own traffic.
+
+```bash
+lane config audit_sample_rate 0.02
+```
+
+From then on, 2% of proxy requests are answered **twice**: once by the routed
+model, once by the baseline it is being compared against. Both answers are
+kept. Then:
+
+```bash
+lane audit --judge
+```
+
+```
+── quality audit ─────────────────────────────────────────────
+  sampled       412 requests  (2% of traffic)
+  judged        412
+
+  as good or better   94%   (31 better, 356 same)
+  worse                6%   (25 of 412)
+  cost                8.1x less than the baseline on the same requests
+
+── by request type ───────────────────────────────────────────
+  simple         188   99% acceptable
+  general        121   96% acceptable
+  reasoning       74   81% acceptable  <-- check this
+  longform        29   93% acceptable
+```
+
+That last column is the useful part. It does not just say "routing is fine" —
+it says **where** it is fine and where it is not, so the floor for that one
+lane can be raised instead of the whole idea being abandoned.
+
+### Why the number is worth trusting
+
+Four things, all of which cost accuracy in the direction that makes LANE look
+worse:
+
+**The judge is the expensive model.** It grades its own replacement. Asking a
+cheap model whether a cheap model did well is not evidence.
+
+**Position is alternated.** Judges favour whichever answer they read first by a
+margin wide enough to manufacture this result, so which side the routed answer
+sits on flips per row and the bias cancels across the sample.
+
+**The judge is told to ignore length, tone and confidence** — the three things
+that make a bigger model *look* better without being more useful — and told
+that SAME is the expected answer, not a cop-out.
+
+**"Acceptable" is better-or-same, and worse is reported separately.** A router
+does not need to win. It needs to not lose, far more cheaply.
+
+**Your answer is never the experiment.** The routed answer is returned exactly
+as it would have been; the baseline call happens afterwards, for the record
+only. Nobody is served a slower or worse answer because an audit is running.
+
+The shadow calls are real money and appear in the ledger under their own
+source, so the audit's cost is never mistaken for traffic you asked for and
+never quietly netted off the savings it is measuring.
+
+---
+
 ## Commands
 
 | | |
@@ -450,6 +522,8 @@ make that failure impossible to miss again.
 | `lane stats --days 7` | what you spent, and what you saved |
 | `lane tail` | the last requests, one line each |
 | `lane config <key> <value>` | change a setting |
+| `lane audit` | what the routing cost in quality, measured |
+| `lane audit --judge` | grade the sampled pairs |
 | `lane doctor` | check the installation |
 
 Useful settings: `mode`, `baseline_model`, `max_cost_per_request` (refuse a

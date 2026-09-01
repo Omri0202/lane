@@ -15,7 +15,8 @@ import asyncio
 import json
 import sys
 
-from . import catalog, classify, config, keys, ledger, lanes, policy, providers
+from . import (audit, catalog, classify, config, keys, ledger, lanes,
+               policy, providers)
 
 _DIM, _B, _R = "\033[2m", "\033[1m", "\033[0m"
 _G, _Y, _RED = "\033[32m", "\033[33m", "\033[31m"
@@ -394,6 +395,133 @@ def cmd_tail(args) -> int:
     return 0
 
 
+
+# ── lane audit ───────────────────────────────────────────────────────────────
+
+async def _judge_all(rows, model_id: str) -> int:
+    """Ask the judge about every unjudged pair.
+
+    Which side the routed answer appears on alternates per row. Judges favour
+    whichever answer they read first by a margin large enough to manufacture
+    the result this command exists to report, so the position is varied and
+    recorded, and the bias cancels across the sample instead of accumulating.
+    """
+    m = catalog.by_id(model_id)
+    if m is None:
+        print(c(f"judge model {model_id!r} is not in the catalog", _RED))
+        return 0
+    key = keys.get(m.provider)
+    if not key:
+        print(c(f"no key for {m.provider} — cannot judge", _RED))
+        return 0
+
+    adapter = providers.get(m.provider)
+    done = 0
+    for i, row in enumerate(rows):
+        if row.get("verdict"):
+            continue
+        swapped = bool(i % 2)
+        # Room to think. A one-word answer needs one token, but a reasoning
+        # model spends its budget on reasoning FIRST — at max_tokens 8 the
+        # whole allowance went to internal thought and the visible reply came
+        # back empty, so every verdict was silently dropped and the audit
+        # reported nothing judged. The models worth using as a judge are
+        # exactly the ones that behave this way.
+        body = {"messages": [{"role": "user",
+                              "content": audit.judge_prompt(row, swapped)}],
+                "max_tokens": 512, "model": m.id}
+        kwargs = {}
+        if m.provider == "anthropic":
+            kwargs["allow_sampling"] = m.sampling
+        try:
+            reply = await adapter.complete(body, m.id, key, **kwargs)
+            text = (reply["choices"][0]["message"].get("content") or "")
+        except Exception as exc:
+            print(f"  {c('!', _Y)} {str(exc)[:110]}")
+            continue
+        verdict = audit.read_verdict(text, swapped)
+        if not verdict:
+            # Silence here is what hid the empty-reply bug. Say so.
+            print(f"  {c('?', _Y)} unreadable verdict: {text[:60]!r}")
+        if verdict:
+            row["verdict"] = verdict
+            row["judge"] = {"model": m.id, "swapped": swapped}
+            done += 1
+            print(f"  {c('judged', _DIM)} {done}", end="\r")
+    return done
+
+
+def cmd_audit(args) -> int:
+    rows = audit.read()
+    if args.judge:
+        pending = [r for r in rows if not r.get("verdict")]
+        if not pending:
+            print("\n  nothing left to judge\n")
+        else:
+            judge_id = (config.get("audit_judge_model")
+                        or config.get("baseline_model"))
+            print()
+            print(_rule(f"judging {len(pending)} pairs with {judge_id}"))
+            n = asyncio.run(_judge_all(rows, judge_id))
+            audit.rewrite(rows)
+            print(f"  judged {n}                    ")
+
+    s = audit.summary(rows)
+    if not s["sampled"]:
+        print()
+        print("  no audited requests yet.")
+        print("  " + c("turn it on with: lane config audit_sample_rate 0.02",
+                       _DIM))
+        print("  " + c("then send traffic through `lane serve` as usual.", _DIM))
+        print()
+        return 0
+
+    print()
+    print(_rule("quality audit"))
+    print(f"  sampled       {s['sampled']:,} requests"
+          + (f"  ({s['rate']:.0%} of traffic)" if s["rate"] else ""))
+    print(f"  judged        {s['judged']:,}")
+
+    if s["judged"]:
+        counts = s["counts"]
+        good = c(f"{s['acceptable']:.0%}", _G)
+        print()
+        print(f"  {c('as good or better', _B)}   {good}   "
+              + c(f"({counts['better']} better, {counts['same']} same)", _DIM))
+        if counts["worse"]:
+            print(f"  {c('worse', _Y)}               {s['worse_rate']:.0%}   "
+                  + c(f"({counts['worse']} of {s['judged']})", _DIM))
+        if s["factor"] > 1:
+            print(f"  cost                {s['factor']:.1f}x less than the "
+                  f"baseline on the same requests")
+
+        if s["by_lane"]:
+            print(f"\n{_rule('by request type')}")
+            for name, b in sorted(s["by_lane"].items(),
+                                  key=lambda kv: -kv[1]["n"]):
+                ok = (b["better"] + b["same"]) / b["n"] if b["n"] else 0
+                flag = c("  <-- check this", _Y) if ok < 0.8 and b["n"] >= 5 else ""
+                print(f"  {name:<12}{b['n']:>5}   {ok:.0%} acceptable{flag}")
+
+        print()
+        print("  " + c(audit.headline(s), _DIM))
+    else:
+        print()
+        print("  " + c("run `lane audit --judge` to grade them", _DIM))
+
+    if args.show:
+        for row in rows[-args.show:]:
+            print()
+            print(_rule(f"{row.get('lane','?')} \u00b7 {row.get('verdict') or 'unjudged'}"))
+            print(f"  {c('asked', _DIM)}  {row.get('request','')[:200]}")
+            print(f"  {c(row['routed']['model'], _B)}  "
+                  f"{row['routed']['text'][:300]}")
+            print(f"  {c(row['base']['model'], _DIM)}  "
+                  f"{row['base']['text'][:300]}")
+    print()
+    return 0
+
+
 # ── lane config / doctor ─────────────────────────────────────────────────────
 
 def cmd_config(args) -> int:
@@ -552,6 +680,15 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("key", nargs="?")
     s.add_argument("value", nargs="?")
     s.set_defaults(func=cmd_config)
+
+    s = sub.add_parser(
+        "audit",
+        help="prove the cheap route was good enough, on your own traffic")
+    s.add_argument("--judge", action="store_true",
+                   help="grade the sampled pairs with the judge model")
+    s.add_argument("--show", type=int, default=0, metavar="N",
+                   help="print the last N pairs in full")
+    s.set_defaults(func=cmd_audit)
 
     s = sub.add_parser("doctor", help="check the installation")
     s.set_defaults(func=cmd_doctor)

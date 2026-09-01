@@ -56,6 +56,15 @@ DEFAULTS = {
     #: Refuse to serve a request whose estimated cost exceeds this, in USD.
     #: 0 disables the guard.
     "max_cost_per_request": 0.0,
+    #: Fraction of proxy requests to answer TWICE — once routed, once on the
+    #: baseline — so the two can be compared. 0 is off. 0.02 costs about 2%
+    #: extra and buys a defensible answer to "will quality drop?", which is
+    #: the question that decides whether anyone adopts cost routing.
+    "audit_sample_rate": 0.0,
+    #: Which model grades the pairs. Empty means the baseline, i.e. the
+    #: expensive model marks its own replacement — a bias AGAINST the result
+    #: being claimed, which is the right direction.
+    "audit_judge_model": "",
 }
 
 _lock = threading.Lock()

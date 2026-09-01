@@ -29,7 +29,8 @@ import time
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
-from . import catalog, classify, config, keys, ledger, lanes, policy, providers
+from . import (audit, catalog, classify, config, keys, ledger, lanes,
+               policy, providers)
 from .lanes import Lane
 from .providers import ProviderError
 
@@ -278,6 +279,7 @@ async def _json_response(decision: policy.Decision, body: dict, started: float):
                       in_tokens=usage.get("in", 0), out_tokens=usage.get("out", 0),
                       tier=str(current.tier), margin=current.margin,
                       latency_ms=int((time.perf_counter() - started) * 1000))
+        await _maybe_audit(current, body, result, usage)
         return JSONResponse(content=result, headers=_headers(current))
 
     if last and last.provider_fatal:
@@ -293,6 +295,62 @@ async def _json_response(decision: policy.Decision, body: dict, started: float):
     return _error(last.status if last else 502,
                   str(last) if last else "no provider answered",
                   "upstream_error")
+
+
+async def _maybe_audit(decision: policy.Decision, body: dict,
+                       result: dict, usage: dict) -> None:
+    """Answer the same request on the baseline model, for the record.
+
+    Runs AFTER the user's answer is settled and never touches it. The point of
+    the audit is to find out whether the cheap route was good enough; serving a
+    slower or different answer in order to measure that would corrupt the thing
+    being measured and annoy the person paying for it.
+
+    Silent on every failure. An audit is bookkeeping — it must never be the
+    reason a request the user already paid for looks broken.
+    """
+    try:
+        base = policy.baseline_model()
+        if base is None or base.id == decision.model.id:
+            return
+        text = classify.text_of(body.get("messages") or [])
+        if not audit.should_sample(f"{decision.model.id}|{text}"):
+            return
+
+        key = keys.get(base.provider)
+        if not key:
+            return
+        kwargs = {}
+        if base.provider == "anthropic":
+            kwargs["allow_sampling"] = base.sampling
+        shadow = await providers.get(base.provider).complete(
+            body, base.id, key, **kwargs)
+
+        def answer(payload):
+            try:
+                return payload["choices"][0]["message"].get("content") or ""
+            except Exception:
+                return ""
+
+        su = shadow.get("usage") or {}
+        s_in = int(su.get("prompt_tokens") or 0)
+        s_out = int(su.get("completion_tokens") or 0)
+        r_in, r_out = usage.get("in", 0), usage.get("out", 0)
+
+        audit.record(
+            request=text, lane=decision.lane,
+            routed_model=decision.model.id, routed_text=answer(result),
+            routed_cost=decision.model.cost(r_in, r_out),
+            routed_tokens=(r_in, r_out),
+            base_model=base.id, base_text=answer(shadow),
+            base_cost=base.cost(s_in, s_out), base_tokens=(s_in, s_out))
+        # The shadow call is real money and belongs in the books like any
+        # other, marked so it is never mistaken for traffic the user asked for.
+        ledger.record(lane=decision.lane, mode="audit", model=base.id,
+                      provider=base.provider, in_tokens=s_in, out_tokens=s_out,
+                      source="audit")
+    except Exception:
+        pass
 
 
 def _swap(decision: policy.Decision, model) -> policy.Decision:
