@@ -177,6 +177,9 @@
   .score b { color:var(--good); font-size:11.5px; }
   .score .n { margin-left:auto; color:var(--faint); }
 
+  .setup { margin-top:8px; padding-top:8px; border-top:1px dashed var(--line);
+           font-size:10.5px; color:var(--faint); }
+  .setup a, .offline a { color:var(--accent); }
   .offline { padding:11px; font-size:11.5px; color:var(--dim); }
   .offline code { background:var(--panel); padding:1px 5px; border-radius:4px; }
 
@@ -308,6 +311,11 @@
         </div>
         ${rows ? `<table>${rows}</table>` : ""}
         <div class="why">${esc(a.explain)}</div>
+        ${a.assuming_all ? `<div class="setup">
+           Assuming you can use every ${esc(SITE_NAME)} model.
+           <a href="${BASE}/setup" target="_blank" rel="noreferrer">Tell LANE
+           which ones you actually have</a> and this gets sharper.
+         </div>` : ""}
       </div>`;
     show();
   }
@@ -316,7 +324,10 @@
     content.innerHTML = `
       <div class="offline">
         LANE is not running. Start it with <code>lane serve</code> and this
-        panel will pick up on its own.
+        panel will pick up on its own.<br><br>
+        First time? Open <a href="${BASE}/setup" target="_blank"
+        rel="noreferrer">${BASE.replace(/^https?:\/\//, "")}/setup</a> to say
+        which models you can actually use.
       </div>`;
     show();
   }

@@ -114,50 +114,67 @@ cd lane
 python -m pip install -e .
 ```
 
-Python 3.10 or newer. Windows, macOS, and Linux — there is nothing
-platform-specific in it.
+```bash
+lane serve
+```
 
-### Add your keys
+Then **open http://127.0.0.1:8080/setup** and do two things.
+
+### 1. Give it your keys
+
+One box per provider — Anthropic, OpenAI, Google, Groq, OpenRouter. Paste,
+click Connect, and LANE asks the provider whether the key works before it
+stores anything. "Connected" means stored **and** accepted, never just stored.
+
+Keys go to your operating system's credential store — Windows Credential
+Manager, macOS Keychain, Secret Service on Linux. Never a file, never off the
+machine.
+
+You only need keys for the **proxy**, the part that calls models for you. The
+browser panel advises perfectly well without any key at all.
+
+**No budget, or under 18?** Google AI Studio requires an account holder aged
+18+, and the paid providers need credits. **Groq has a free tier** with no such
+gate, and it is the cheapest way to run the whole thing.
+
+### 2. Tell it which models you can actually pick
+
+This is the part that makes the advice worth reading.
+
+If your plan has no Opus, being told to use Opus is not a recommendation — it
+is a chore with an extra step. The setup page lists every model with its price
+and what it is good at; untick anything you cannot reach, and every
+recommendation afterwards comes from what is genuinely in front of you.
+
+Until you do, the panel says so rather than pretending:
+
+> *Assuming you can use every Claude model. Tell LANE which ones you actually
+> have and this gets sharper.*
+
+Ticking everything is the same as ticking nothing — both mean "assume the whole
+catalog", so the setting cannot trap you with an empty list.
+
+### The setup page cannot be reached from a website
+
+It is the only place that writes credentials, and the same browser has
+claude.ai open in another tab. So none of those endpoints carries a CORS
+header, all of them require a JSON body — which forces a preflight a website
+cannot pass — and any request arriving with a foreign `Origin` is refused
+outright. claude.ai may ask LANE which model to use. It can never read or
+replace a key.
+
+### Prefer a terminal?
 
 ```bash
 lane keys set anthropic
 ```
 
-It prompts without echoing and stores the key in your OS keyring (Windows
-Credential Manager, macOS Keychain, Secret Service on Linux). Keys never touch
-a config file. Repeat for `openai` and `google`.
-
-Supported: `anthropic`, `openai`, `google`, `groq`, `openrouter`.
-
-You need **at least one**. LANE routes among whatever it finds — with one key it
-still saves money by picking the right model *within* that provider; with
-several it can cross between them.
-
-**No budget, or under 18?** Google AI Studio requires an account holder aged
-18+, and the paid providers need credits. **Groq has a free tier** with daily
-token allowances and no such gate, so it is the cheapest way to run LANE at
-all:
-
-```bash
-lane keys set groq
-```
-
-The five Groq models in the catalog were chosen because they are known to work
-rather than guessed at. Note that only `qwen/qwen3.6-27b` reads images, so on
-Groq alone it *is* the vision lane; and Groq's strongest model sits below the
-reasoning floor, so hard questions come back marked `x-lane-degraded` — LANE
-gives you the best it has and tells you it is not enough, rather than pretending
-otherwise.
-
-If there is no keyring on the machine (headless Linux, usually), export
-`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` instead. `lane doctor`
-tells you which is in use.
-
-### Check it
-
 ```bash
 lane doctor
 ```
+
+`lane keys set --visible` shows the key as you paste it, for terminals that
+will not paste into a hidden prompt.
 
 ---
 

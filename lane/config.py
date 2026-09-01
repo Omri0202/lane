@@ -44,6 +44,15 @@ DEFAULTS = {
     "disabled_providers": [],
     #: Never route to these model ids.
     "disabled_models": [],
+    #: The models this person can actually reach — the ones in their plan's
+    #: dropdown, or the ones their key is entitled to. Empty means "assume the
+    #: whole catalog", which is the only sensible default before anyone has
+    #: said otherwise.
+    #:
+    #: This is the difference between advice and trivia. Telling somebody on a
+    #: plan without Opus to use Opus is not a recommendation, it is a chore
+    #: with an extra step.
+    "enabled_models": [],
     #: Refuse to serve a request whose estimated cost exceeds this, in USD.
     #: 0 disables the guard.
     "max_cost_per_request": 0.0,

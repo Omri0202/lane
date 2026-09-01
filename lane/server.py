@@ -630,10 +630,17 @@ async def advise(request: Request):
         "est_out": out_tokens,
         "options": [],
         "elsewhere": [],
+        #: True while nobody has said which models they can reach, so the
+        #: advice covers the whole catalog and may name something their plan
+        #: does not offer. Better to admit that than to let them discover it
+        #: in a dropdown with no such entry.
+        "assuming_all": not (config.get("enabled_models") or []),
     }
 
-    here = [m for m in catalog.all_models()
-            if not provider or m.provider == provider]
+    # What THIS person can pick, not what exists in the world. Before anyone
+    # has said otherwise this is still the whole catalog, so the advisor is
+    # useful out of the box and gets sharper the moment they tell it.
+    here = catalog.declared(provider)
 
     def cost_of(m):
         return m.cost_for(in_tokens, out_tokens)
@@ -788,6 +795,150 @@ async def advice_stats(request: Request, days: float | None = None):
         "pct": round(t["saved_pct"], 1),
         "by_lane": {k: v["requests"] for k, v in s["by_lane"].items()},
     }, headers=_cors(request.headers.get("origin")))
+
+
+# ── setup: keys and model selection, from a browser ─────────────────────────
+#
+# These endpoints are the only ones that WRITE credentials, and none of them
+# carries a CORS header. That is the security boundary, not an oversight:
+# claude.ai may ask LANE what model to use, and must never be able to read or
+# replace an API key. Requiring a JSON body helps enforce it — a JSON
+# content-type is not a "simple request", so a browser preflights it, and with
+# no CORS headers to find, the preflight fails and the request never lands.
+
+def _local_only(request: Request):
+    """Reject anything that arrives with a cross-origin stamp on it.
+
+    Belt and braces beside the missing CORS headers. A same-origin fetch from
+    the setup page sends no Origin, or sends our own.
+    """
+    origin = request.headers.get("origin")
+    if not origin:
+        return None
+    host = request.headers.get("host", "")
+    if origin.split("//")[-1] == host:
+        return None
+    return _error(403, "setup is local-only and cannot be driven by a website",
+                  "forbidden")
+
+
+@app.get("/setup", response_class=HTMLResponse)
+async def setup_page():
+    """Where somebody actually sets this up.
+
+    Key entry lived only in `lane keys set` until now, which meant the first
+    thing a browser-extension user had to do was open a terminal. That is not
+    an onboarding step, it is an exit.
+    """
+    path = config.PKG / "web" / "setup.html"
+    if not path.is_file():
+        return HTMLResponse("<p>setup page missing from this install</p>",
+                            status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/lane/setup-state")
+async def setup_state():
+    """Everything the setup page draws itself from."""
+    on = set(config.get("enabled_models") or [])
+    providers = []
+    for name, meta in keys.PROVIDERS.items():
+        key = keys.get(name)
+        providers.append({
+            "id": name, "name": meta["name"], "console": meta["console"],
+            "note": meta.get("note", ""),
+            "connected": bool(key),
+            "masked": keys.mask(key) if key else "",
+            "source": keys.source(name) or "",
+        })
+    models = [{
+        "id": m.id, "display": m.display, "provider": m.provider,
+        "tier": m.tier, "kind": m.kind,
+        "in_price": m.in_price, "out_price": m.out_price,
+        "per_image": m.per_image,
+        "strengths": list(m.strengths),
+        "enabled": (not on) or m.id in on,
+    } for m in catalog.all_models()]
+    return {
+        "providers": providers,
+        "models": models,
+        "explicit_selection": bool(on),
+        "keyring": keys.keyring_available(),
+        "mode": config.get("mode"),
+        "baseline": config.get("baseline_model"),
+    }
+
+
+@app.post("/lane/setup-key")
+async def setup_key(request: Request):
+    """Store a key, after checking the provider agrees it is one.
+
+    The same two-step as the CLI, and for the same reason: a key that is
+    accepted and reported as saved without ever being tried is how a
+    two-character paste survived long enough to look like a routing bug.
+    """
+    blocked = _local_only(request)
+    if blocked:
+        return blocked
+    try:
+        body = await request.json()
+    except Exception:
+        return _error(400, "request body is not valid JSON")
+
+    provider = (body.get("provider") or "").lower()
+    if provider not in keys.PROVIDERS:
+        return _error(400, f"unknown provider {provider!r}")
+
+    if body.get("remove"):
+        keys.delete(provider)
+        return {"ok": True, "connected": False}
+
+    value = (body.get("key") or "").strip()
+    ok, problem = keys.looks_valid(provider, value)
+    if not ok:
+        return _error(400, problem, "invalid_key")
+
+    try:
+        live = await providers.get(provider).list_models(value)
+    except Exception as exc:
+        return _error(
+            400, f"{keys.PROVIDERS[provider]['name']} rejected that key: "
+                 f"{str(exc)[:200]}", "invalid_key")
+
+    try:
+        where = keys.set(provider, value)
+    except (KeyError, RuntimeError) as exc:
+        return _error(500, str(exc), "storage_error")
+
+    catalog.reload()
+    return {"ok": True, "connected": True, "stored_in": where,
+            "models_available": len(live), "warning": problem}
+
+
+@app.post("/lane/setup-models")
+async def setup_models(request: Request):
+    """Record which models this person can actually pick."""
+    blocked = _local_only(request)
+    if blocked:
+        return blocked
+    try:
+        body = await request.json()
+    except Exception:
+        return _error(400, "request body is not valid JSON")
+
+    ids = body.get("models")
+    if not isinstance(ids, list):
+        return _error(400, "models must be a list of model ids")
+
+    known = {m.id for m in catalog.all_models()}
+    chosen = [i for i in ids if i in known]
+    # An empty selection means "everything", never "nothing". Storing nothing
+    # would leave the advisor with no models to suggest and no way back except
+    # a config file, which is a trap rather than a setting.
+    config.set("enabled_models", chosen if len(chosen) < len(known) else [])
+    catalog.reload()
+    return {"ok": True, "selected": len(chosen), "of": len(known)}
 
 
 @app.get("/lane/stats")

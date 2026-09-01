@@ -189,12 +189,31 @@ def usable(providers: list[str] | None = None) -> list[Model]:
     have = set(providers if providers is not None else keys.present())
     off_p = set(config.get("disabled_providers") or [])
     off_m = set(config.get("disabled_models") or [])
+    on_m = set(config.get("enabled_models") or [])
     gone = unavailable_ids()
     return [m for m in all_models()
             if m.provider in have
             and m.provider not in off_p
             and m.id not in off_m
-            and m.id not in gone]
+            and m.id not in gone
+            and (not on_m or m.id in on_m)]
+
+
+def declared(provider: str | None = None) -> list[Model]:
+    """The models the user says they can reach, key or no key.
+
+    Separate from `usable` on purpose. `usable` answers "what can LANE call
+    right now", which needs an API key. This answers "what can this person
+    pick", which on claude.ai or ChatGPT is a question about their
+    subscription and has nothing to do with keys at all. The advisor needs the
+    second question; the proxy needs the first.
+    """
+    on_m = set(config.get("enabled_models") or [])
+    off_m = set(config.get("disabled_models") or [])
+    return [m for m in all_models()
+            if (provider is None or m.provider == provider)
+            and m.id not in off_m
+            and (not on_m or m.id in on_m)]
 
 
 def mark_unavailable(ids) -> None:
