@@ -12,7 +12,8 @@
     "missing here.",
     "sampling: false means the provider REJECTS temperature/top_p with a 400. The adapter strips them rather than forwarding what the client sent.",
     "groq/compound is deliberately ABSENT. G.I.L. measured it returning no content in streaming mode across three attempts; a model that silently answers nothing is worse than a missing one. Re-add it only once its tool-step response shape is handled.",
-    "There is deliberately NO Anthropic image model. No Claude model generates images, and inventing one so the advisor always has an answer would make it confidently wrong on the exact request where being wrong is most obvious. When a site cannot do the job, the advisor says which one can."
+    "There is deliberately NO Anthropic image model. No Claude model generates images, and inventing one so the advisor always has an answer would make it confidently wrong on the exact request where being wrong is most obvious. When a site cannot do the job, the advisor says which one can.",
+    "strengths is what separates the performance variation from a rate card. Tier says how good a model is; strengths say what it is good AT, so 'best for this request' can mean the fast model for a greeting and the thinking one for a proof."
   ],
   "pricing_verified": {
     "anthropic": "2026-06-24",
@@ -39,7 +40,15 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "code",
+        "depth",
+        "prose",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "claude-opus-5",
@@ -58,7 +67,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "code",
+        "depth",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "claude-opus-4-8",
@@ -76,7 +92,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "code",
+        "depth",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "claude-sonnet-5",
@@ -95,7 +118,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "code",
+        "prose",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "claude-sonnet-4-6",
@@ -114,7 +144,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "code",
+        "prose",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "claude-haiku-4-5",
@@ -132,7 +169,13 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "speed",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "gpt-5",
@@ -150,7 +193,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "code",
+        "depth",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "gpt-5-mini",
@@ -168,7 +218,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "code",
+        "speed",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "gpt-5-nano",
@@ -186,7 +243,13 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "speed",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "gpt-4.1-mini",
@@ -204,7 +267,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "prose",
+        "speed",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "gemini-2.5-pro",
@@ -222,7 +292,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "depth",
+        "long_context",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "gemini-2.5-flash",
@@ -240,7 +317,14 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "long_context",
+        "speed",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "gemini-2.5-flash-lite",
@@ -258,7 +342,13 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "speed",
+        "tools",
+        "vision",
+        "web"
+      ]
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -277,7 +367,12 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": false
+      "web": false,
+      "strengths": [
+        "code",
+        "depth",
+        "tools"
+      ]
     },
     {
       "id": "openai/gpt-oss-20b",
@@ -296,7 +391,12 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": false
+      "web": false,
+      "strengths": [
+        "code",
+        "speed",
+        "tools"
+      ]
     },
     {
       "id": "qwen/qwen3.6-27b",
@@ -315,7 +415,11 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": false
+      "web": false,
+      "strengths": [
+        "tools",
+        "vision"
+      ]
     },
     {
       "id": "qwen/qwen3.8-27b",
@@ -334,7 +438,11 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": false
+      "web": false,
+      "strengths": [
+        "speed",
+        "tools"
+      ]
     },
     {
       "id": "groq/compound-mini",
@@ -353,7 +461,11 @@
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
-      "web": true
+      "web": true,
+      "strengths": [
+        "tools",
+        "web"
+      ]
     },
     {
       "id": "gpt-image-1",
@@ -372,7 +484,10 @@
       "speed": 1,
       "sampling": false,
       "notes": "Priced per image, not per token. Standard 1024x1024; higher quality and larger sizes cost more.",
-      "web": false
+      "web": false,
+      "strengths": [
+        "image"
+      ]
     },
     {
       "id": "dall-e-3",
@@ -391,7 +506,10 @@
       "speed": 1,
       "sampling": false,
       "notes": "The older generator. Kept because some accounts still offer only this one.",
-      "web": false
+      "web": false,
+      "strengths": [
+        "image"
+      ]
     },
     {
       "id": "imagen-4",
@@ -410,7 +528,10 @@
       "speed": 1,
       "sampling": false,
       "notes": "Google's image generator, reachable from Gemini.",
-      "web": false
+      "web": false,
+      "strengths": [
+        "image"
+      ]
     }
   ]
 }

@@ -42,7 +42,7 @@ def record(*, lane: str, mode: str, model: str, provider: str,
            in_tokens: int, out_tokens: int, latency_ms: int = 0,
            tier: str = "", margin: float = 0.0, ok: bool = True,
            error: str = "", baseline: str | None = None,
-           streamed: bool = False) -> dict:
+           streamed: bool = False, source: str = "proxy") -> dict:
     """Append one request to the ledger. Never raises — a failure to write
     accounting must not fail a request the user already paid for."""
     m = catalog.by_id(model)
@@ -68,6 +68,11 @@ def record(*, lane: str, mode: str, model: str, provider: str,
         "estimated": estimated,
         "tier": tier, "margin": margin,
         "ms": int(latency_ms), "ok": bool(ok), "streamed": bool(streamed),
+        #: "proxy" — LANE made this call and this money was really spent.
+        #: "advisor" — LANE only gave advice; the numbers are what following
+        #: it WOULD have saved. The two must never be added together, and the
+        #: field exists so that they cannot be by accident.
+        "source": source,
     }
     if error:
         row["error"] = error[:400]
@@ -105,9 +110,18 @@ def read(days: float | None = None, limit: int | None = None) -> list[dict]:
     return rows[-limit:] if limit else rows
 
 
-def stats(days: float | None = None) -> dict:
-    """Aggregate the ledger into something worth printing."""
-    rows = [r for r in read(days) if r.get("ok", True)]
+def stats(days: float | None = None, source: str = "proxy") -> dict:
+    """Aggregate the ledger into something worth printing.
+
+    `source` matters more than it looks. Proxy rows are money that left the
+    account; advisor rows are money that would have been saved had the advice
+    been taken, which nobody can verify. Summing them would produce a single
+    impressive number that means nothing, so the split is enforced here rather
+    than left to the caller to remember.
+    """
+    rows = [r for r in read(days)
+            if r.get("ok", True)
+            and r.get("source", "proxy") == source]
     total = {
         "requests": len(rows),
         "in_tokens": sum(r.get("in", 0) for r in rows),
@@ -143,6 +157,38 @@ def stats(days: float | None = None) -> dict:
         "by_provider": group("provider"),
         "errors": len(errors),
     }
+
+
+def advice(*, lane: str, site: str, recommended: str, top: str,
+           rec_cost: float, top_cost: float, in_tokens: int,
+           out_tokens: int) -> dict:
+    """Record one recommendation the advisor made.
+
+    This is the product's own scoreboard: over a week it answers "what is this
+    thing doing for me" with a number instead of a feeling. It is deliberately
+    filed as POTENTIAL saving — LANE cannot see which model you actually
+    picked, and a tool that quietly counts advice as if it were always taken is
+    lying to the person paying for it.
+    """
+    row = {
+        "t": time.time(),
+        "iso": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "lane": lane, "mode": "advice", "site": site,
+        "model": recommended, "provider": site,
+        "in": int(in_tokens), "out": int(out_tokens),
+        "cost": round(rec_cost, 8),
+        "baseline": top, "baseline_cost": round(top_cost, 8),
+        "saved": round(top_cost - rec_cost, 8),
+        "estimated": True, "ok": True, "source": "advisor",
+    }
+    try:
+        with _lock:
+            config.HOME.mkdir(parents=True, exist_ok=True)
+            with config.LEDGER_FILE.open("a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
+    return row
 
 
 def clear() -> None:

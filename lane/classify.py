@@ -422,6 +422,21 @@ _MODEL = Centroid()
 _MODEL.fit(TRAIN)
 
 
+#: The pure DIFFICULTY axis, and the only place the upward tie-break applies.
+#:
+#: ORDER contains every text lane so the under-routing metric can rank them by
+#: cost risk. But translate and web_search are not harder versions of simple —
+#: they are different KINDS of request, and "round up when it is close" across
+#: that boundary is a category error rather than a safety margin. It sent
+#: "thanks that worked perfectly" to the web-search lane, because simple beat
+#: web_search by less than the bias and web_search sits higher in ORDER.
+#:
+#: Rounding trivial up to reasoning is caution. Rounding a thank-you up into a
+#: web search is just wrong.
+_LADDER = [Lane.TRIVIAL, Lane.SIMPLE, Lane.GENERAL, Lane.LONGFORM,
+           Lane.REASONING]
+
+
 def _demand(lane: str) -> int:
     try:
         return ORDER.index(lane)
@@ -441,8 +456,10 @@ def tier1(text: str) -> tuple[str | None, float, str]:
     if margin < CONFIDENT:
         return None, margin, ""
 
-    if margin < _UPBIAS and _demand(runner_lane) > _demand(lane):
-        return runner_lane, margin, ("how the message reads, rounded up — it "
+    if (margin < _UPBIAS
+            and lane in _LADDER and runner_lane in _LADDER
+            and _LADDER.index(runner_lane) > _LADDER.index(lane)):
+        return runner_lane, margin, ("how the message reads, rounded up - it "
                                      "was close and this is the safer half")
     return lane, margin, "how the message reads"
 
@@ -480,10 +497,19 @@ def classify(messages: list[dict], tools: list | None = None,
 
     lane, margin, reason = tier1(text)
     if lane == Lane.TRANSLATE and not _is_translation(text):
-        # tier 0 already declined this: it names a programming language, or no
-        # human one. Porting code between languages is reasoning work, and a
-        # statistical hunch must not overturn a deterministic check.
-        lane, reason = Lane.REASONING, "this moves code between languages"
+        # tier 0 already declined this, so the hunch is wrong. WHY it is wrong
+        # decides where the request goes: a named programming language means
+        # this is a porting job and belongs in reasoning, while anything else
+        # means the translate centroid simply scored oddly and the sensible
+        # move is the runner-up, not a lane picked out of the air.
+        words = set(_TOKEN.findall((text or "").lower()))
+        if words & _PROG_LANGS:
+            lane, reason = Lane.REASONING, "this moves code between languages"
+        else:
+            scored = _MODEL.rank(text or "")
+            alt = next((l for _, l in scored if l != Lane.TRANSLATE), None)
+            lane = alt or Lane.GENERAL
+            reason = "how the message reads"
     if lane:
         return done(lane, reason, "1", margin)
 

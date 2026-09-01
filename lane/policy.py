@@ -135,7 +135,8 @@ def feasible(models: list[Model], *, caps: tuple = (),
     return out
 
 
-def _rank(models: list[Model], mode: str, prefers: str) -> list[Model]:
+def _rank(models: list[Model], mode: str, prefers: str,
+          wants: str = "") -> list[Model]:
     """Order the feasible, qualified models best-first for this mode."""
     if mode == config.MODE_SAVE:
         # Cheapest first; among equally priced models take the stronger one,
@@ -144,12 +145,22 @@ def _rank(models: list[Model], mode: str, prefers: str) -> list[Model]:
         return sorted(models, key=lambda m: (m.blended(), -m.tier))
 
     if mode == config.MODE_PERFORMANCE:
-        # Strongest first. Speed breaks ties for lanes that want speed, price
-        # breaks them otherwise — never leave a tie to dict ordering, or the
-        # chosen model silently depends on catalog file order.
-        if prefers == "speed":
-            return sorted(models, key=lambda m: (-m.tier, -m.speed, m.blended()))
-        return sorted(models, key=lambda m: (-m.tier, m.blended(), -m.speed))
+        # Best FIT first, not biggest.
+        #
+        # Ranking on tier alone made this mode a rate card: it returned the
+        # most expensive model in the catalog for every request, whatever the
+        # request was, which is not advice — a user can find the top of a price
+        # list without help. A model that declares the strength this lane
+        # actually wants outranks a nominally stronger one that does not, so a
+        # greeting gets the fast model and a proof gets the thinking one.
+        #
+        # Within each group tier still decides, so "fits" never means "worse".
+        def key(m):
+            fits = 0 if (wants and wants in m.strengths) else 1
+            if prefers == "speed":
+                return (fits, -m.tier, -m.speed, m.blended())
+            return (fits, -m.tier, m.blended(), -m.speed)
+        return sorted(models, key=key)
 
     # Balanced: most capability per dollar. This is the mode that actually
     # rewards a good catalog, because it is the only one that reads both
@@ -210,13 +221,22 @@ def choose(lane: str, *, mode: str | None = None,
     qualified = [m for m in cand if m.tier >= floor]
 
     if qualified:
-        ranked = _rank(qualified, mode, lanes.spec(lane)["prefers"])
+        ranked = _rank(qualified, mode, lanes.spec(lane)["prefers"],
+                       wants=lanes.wants(lane))
         if mode == config.MODE_SAVE:
             why = ("cheapest model that still clears the "
                    f"{lanes.label(lane).lower()} bar")
         elif mode == config.MODE_PERFORMANCE:
-            why = ("strongest model available for "
-                   f"{lanes.label(lane).lower()} work")
+            want = lanes.wants(lane)
+            if want and want in ranked[0].strengths:
+                why = lanes.fit_reason(lane) or (
+                    f"best fit for {lanes.label(lane).lower()} work")
+            else:
+                # Nothing in the catalog claims the strength this lane wants,
+                # so say that rather than dress up "most expensive" as "best".
+                why = (f"nothing you have is built for "
+                       f"{lanes.label(lane).lower()} work — this is simply "
+                       f"the strongest")
         else:
             why = "best capability per dollar for this lane"
     else:

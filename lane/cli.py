@@ -290,12 +290,37 @@ def cmd_models(args) -> int:
 
 # ── lane stats ───────────────────────────────────────────────────────────────
 
+def _advisor_block(days) -> None:
+    """What the browser panel has been telling you, and what it is worth.
+
+    Kept visually and arithmetically apart from the proxy figures above. One is
+    money that left the account; the other is money that would have stayed in
+    it had every recommendation been taken. Adding them together would produce
+    a bigger number and a dishonest one.
+    """
+    a = ledger.stats(days, source="advisor")["total"]
+    if not a["requests"]:
+        return
+    print()
+    print(_rule("advisor · potential"))
+    print(f"  messages advised on   {a['requests']:,}")
+    print(f"  top model throughout  {ledger.money(a['baseline_cost'])}")
+    print(f"  following the advice  {ledger.money(a['cost'])}")
+    if a["saved"] > 0:
+        pct = f"({a['saved_pct']:.0f}% less)"
+        print("  " + c("would have saved", _G) + "      "
+              + c(ledger.money(a["saved"]), _G) + "  " + c(pct, _G))
+    print("  " + c("potential, not measured - LANE cannot see which model "
+                   "you picked", _DIM))
+
+
 def cmd_stats(args) -> int:
     s = ledger.stats(args.days)
     t = s["total"]
 
     if not t["requests"]:
-        print(f"\n  nothing recorded yet"
+        _advisor_block(args.days)
+        print(f"\n  no proxy traffic recorded yet"
               + (f" in the last {args.days:g} days" if args.days else "")
               + ". Run some traffic through `lane serve` first.\n")
         return 0
@@ -344,6 +369,7 @@ def cmd_stats(args) -> int:
     if s["errors"]:
         print(f"\n  {c(str(s['errors']) + ' failed request(s)', _Y)} "
               f"{c('— see `lane tail`', _DIM)}")
+    _advisor_block(args.days)
     print()
     return 0
 

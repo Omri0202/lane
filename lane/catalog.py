@@ -58,6 +58,15 @@ class Model:
     #: but on the API it genuinely varies — and a model that cannot look
     #: answers a "what happened today" question from memory, confidently.
     web: bool = True
+    #: What this model is actually good at, from a fixed vocabulary:
+    #: depth, code, prose, speed, vision, web, tools, long_context, image.
+    #:
+    #: This is what separates "best model" from "best model FOR THIS". Tier is
+    #: one number and cannot express that Haiku is the right answer for a
+    #: greeting while being the wrong one for a proof — performance mode reads
+    #: tier alone and would hand you the most expensive model every time, which
+    #: is a rate card, not advice.
+    strengths: tuple = ()
     #: USD per generated image. Image models are not billed per token, so
     #: their in/out prices are zero and this carries the real number.
     per_image: float = 0.0
@@ -117,7 +126,10 @@ def _build() -> tuple[list[Model], dict]:
     models: list[Model] = []
     for row in merged.values():
         try:
-            models.append(Model(**{k: v for k, v in row.items() if k in fields}))
+            clean = {k: v for k, v in row.items() if k in fields}
+            if isinstance(clean.get("strengths"), list):
+                clean["strengths"] = tuple(clean["strengths"])
+            models.append(Model(**clean))
         except TypeError:
             continue  # an incomplete row is skipped, not fatal
 

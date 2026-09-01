@@ -10,10 +10,12 @@ because its author tested it on the sentences he had just written. HELDOUT
 exists to make that failure impossible to miss — it is scored by
 tests/test_classify.py, and the router is judged on it, never on TRAIN.
 
-SECOND: only five lanes appear here. VISION and TOOLS are structural facts — an
-image is attached or it is not, a tool schema is present or it is not — and are
-decided before any text is read. Asking a text classifier to guess at them
-would be strictly worse than looking.
+SECOND: not every lane appears here. VISION and TOOLS are structural facts — an
+image is attached or it is not, a tool schema is present or it is not — and
+IMAGE_GEN is caught by a deterministic rule, because recommending a chat model
+for a picture is not a worse answer but an impossible one. All three are
+decided before a character of text is read; asking a statistical classifier to
+guess at them would be strictly worse than looking.
 
 Phrasing is deliberately uneven: terse and verbose, polite and blunt, sloppy
 and clean, first-person and imperative. The failure being designed around is a
@@ -303,7 +305,9 @@ TRAIN: list[tuple[str, str]] = [
     ("whats happening in the markets today", Lane.WEB_SEARCH),
     ("latest release of that library", Lane.WEB_SEARCH),
     ("todays headlines please", Lane.WEB_SEARCH),
-    ("find me recent articles on this", Lane.WEB_SEARCH),
+    # Phrased around the LOOKUP, not around 'articles ... for me', which the
+    # long-form lane uses constantly ('boil this article down for me').
+    ("find recent coverage of this online", Lane.WEB_SEARCH),
     ("is that restaurant still open", Lane.WEB_SEARCH),
 ]
 

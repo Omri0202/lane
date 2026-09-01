@@ -149,6 +149,37 @@ EXPECTED_OUTPUT = {
     Lane.WEB_SEARCH: 700,
 }
 
+#: The strength that matters for each lane, and the sentence naming why. Read
+#: only by performance mode, which is the variation whose whole promise is
+#: "the model that FITS", not "the model that costs most".
+WANTS = {
+    Lane.TRIVIAL:   ("speed", "answers instantly and there is nothing here "
+                              "a larger model would do differently"),
+    Lane.SIMPLE:    ("speed", "recall is not where models differ — this one "
+                              "returns the fact fastest"),
+    Lane.GENERAL:   ("prose", "explains clearly, which is what this needs "
+                              "more than raw capability"),
+    Lane.LONGFORM:  ("prose", "the strongest writing voice available to you"),
+    Lane.TRANSLATE: ("prose", "handles idiom and register, which is where "
+                              "translations actually go wrong"),
+    Lane.REASONING: ("depth", "thinks before answering, which is the whole "
+                              "difference on a problem like this"),
+    Lane.WEB_SEARCH: ("web", "can search rather than answer from memory"),
+    Lane.VISION:    ("vision", "reads images as well as text"),
+    Lane.TOOLS:     ("tools", "emits well-formed tool calls, which matters "
+                              "more here than being clever"),
+    Lane.IMAGE_GEN: ("image", "actually draws, which no chat model does"),
+}
+
+
+def wants(lane: str) -> str:
+    return WANTS.get(lane, ("depth", ""))[0]
+
+
+def fit_reason(lane: str) -> str:
+    return WANTS.get(lane, ("depth", ""))[1]
+
+
 DEFAULT_LANE = Lane.GENERAL
 
 #: Order from least to most demanding. Used when a constraint (context length,

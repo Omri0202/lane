@@ -31,18 +31,78 @@ OpenAI-compatible app can point at, which does the picking for you.
 
 ---
 
-## The two modes
+## Two variations
 
-| Mode | What it does |
-|---|---|
-| **`lane-save`** | The cheapest model that still clears the bar for what you asked. |
-| **`lane-perf`** | The strongest model available for what you asked. |
-| **`lane-balanced`** *(default)* | The most capability per dollar. |
+Every message gets read locally — in about 200 microseconds, without calling a
+model to decide which model to call — and sorted into one of ten kinds of
+request. Then you choose what to optimise for.
 
-The bar in "clears the bar" is the important part. Save mode is allowed to be as
-cheap as it likes **above** a capability floor set per request type, and not one
-point below it. Without that rail, "cheapest wins" quietly degrades everything
-to your worst model — which is how cost routers get uninstalled in week two.
+### SAVE — the cheapest model that still does the job
+
+The reason most people install this. You pick a model from the dropdown once,
+in the morning, and forget; every "thanks" for the rest of the day is billed at
+frontier rates.
+
+```
+SIMPLE                       ~4 in · ~120 out
+CHEAPEST THAT FITS ON CLAUDE
+Claude Haiku 4.5                      $0.0006
+saves $0.0054 · 10x cheaper than Fable 5
+
+This is recall, not reasoning. Every model knows
+it; only one of them charges 10x more to say so.
+```
+
+The important word is **still**. Save mode may go as cheap as it likes above a
+capability floor set per request type, and not one point below it. Without that
+rail, "cheapest wins" quietly degrades everything to your worst model — which
+is how cost routers get uninstalled in week two.
+
+It keeps a running total, and calls it what it is:
+
+```
+could have saved $2.41              184 messages
+```
+
+Potential, not measured. LANE cannot see which model you actually picked, and a
+tool that counts its own advice as though it were always taken is flattering
+itself with the number it is selling on.
+
+### BEST — the model that actually fits
+
+Not the biggest. The one whose strengths match the job.
+
+```
+REASONING                  ~15 in · ~1,200 out
+BEST FIT ON CLAUDE
+Claude Fable 5                         $0.060
+thinks before answering, which is the whole
+difference on a problem like this
+
+5x the price of the cheapest model that would
+cope. Worth it when the answer matters more than
+the bill; switch to SAVE when it does not.
+```
+
+Ask it about a greeting and BEST returns **Haiku 4.5**, the same model SAVE picks —
+because a larger model would produce the same reply more slowly. That is the
+test of whether this mode is doing anything: a version that returned the top of
+the price list every time would be a rate card wearing a recommendation's
+clothes, and you can read a price list without installing anything.
+
+Models declare what they are good AT — `depth`, `prose`, `speed`, `vision`,
+`web`, `code` — and each kind of request declares what it wants. Tier still
+decides within the fitting group, so "fits" never means "worse".
+
+| On claude.ai | SAVE | BEST |
+|---|---|---|
+| Greeting | Haiku 4.5 | Haiku 4.5 — *same; nothing bigger would help* |
+| Look something up | Haiku 4.5 | Fable 5 — *can search rather than answer from memory* |
+| Translate a letter | Haiku 4.5 | Fable 5 — *handles idiom and register* |
+| Write an article | Sonnet 5 | Fable 5 — *the strongest writing voice you have* |
+| Debug a query | Sonnet 5 | Fable 5 — *thinks before answering* |
+| Draw a picture | *Claude cannot. ChatGPT, ~$0.04* | *same* |
+| Draw a picture | *Claude can't. ChatGPT, $0.04* | *same* |
 
 ---
 
@@ -161,17 +221,12 @@ A router you cannot switch off is a router people work around.
 
 ## The advisor — a panel over claude.ai, chatgpt.com, gemini
 
-This is LANE without the proxy, and for most people it is the point of the
-whole thing.
+A small card in the corner of the page you are already using. It reads what you
+are typing, on your machine, and tells you which model this message wants —
+**before you send it**, while there is still time to act on it. Advice that
+arrives after you press send is a report.
 
-You are already talking to Claude in a browser. You are already paying for it.
-The only decision you actually make is which model to pick from the dropdown,
-and you make it once, in the morning, and then forget — so every "thanks" for
-the rest of the day goes to the most expensive model you own.
-
-The advisor is a small card in the corner of that page. It reads what you are
-typing, on your machine, and tells you which model this particular message
-wants — **before you send it**, while there is still time to act on it.
+The SAVE / BEST toggle lives in its header, and the choice is remembered.
 
 ```
 ┌────────────────────────────────────┐

@@ -1,33 +1,36 @@
 /*
  * advisor.js — the panel that watches you type and names the model to pick.
  *
- * This is LANE without the proxy. Nothing is intercepted, nothing is sent
- * anywhere, and the page is not modified beyond one floating card: you are
- * still talking to Claude, or ChatGPT, or Gemini, exactly as before. The only
- * claim being made is "this looks like a reasoning problem, Sonnet handles it,
- * and that is a fifth of the cost" — made while there is still time to act on
- * it, which is the whole point. Advice that arrives after you press send is a
- * report, not advice.
+ * Two variations, and they answer different questions.
  *
- * Four decisions worth knowing about:
+ *   SAVE  "what is the cheapest model that will still do this properly?"
+ *         The reason most people install this. A greeting does not need the
+ *         model you are paying frontier rates for, and nobody remembers that
+ *         at the moment of typing "thanks".
  *
- * The composer is found by LISTENING rather than by selector. Every one of
- * these sites is a React app that renames its classes on a whim, so
- * `document.querySelector('.composer-input')` is a bet on someone else's
- * refactor. Watching input events and taking whatever element received them
- * survives redesigns.
+ *   BEST  "which model actually FITS this request?"
+ *         Not the biggest — the one whose strengths match the job. A greeting
+ *         still gets the fast model here, because a larger one would produce
+ *         the same reply more slowly. That is what makes this advice rather
+ *         than a rate card.
  *
- * The panel lives in a shadow root, so the host page's CSS — and there is a
- * lot of it — cannot reach in and break the layout, and nothing here leaks out
- * to break theirs.
+ * Nothing is intercepted. Your message goes to Claude, or ChatGPT, or Gemini,
+ * exactly as before; the page is untouched beyond one floating card, and the
+ * only thing LANE sees is the draft text, on 127.0.0.1.
  *
- * It advises within the models THAT SITE offers, with one exception: when the
- * site cannot do the job at all — asking Claude for a picture — the honest
- * answer is which site can, so that is what it shows.
+ * Mechanics worth knowing:
  *
- * Every number on screen is for THIS message. The prompt is measured, the
- * reply length is estimated from the kind of request, and both are priced.
- * Showing a rate card instead would be true and useless.
+ * The composer is found by LISTENING rather than by selector. These are React
+ * apps that rename their classes on a whim, so querySelector is a bet on
+ * someone else's refactor; watching input events and reading whatever element
+ * received them survives a redesign.
+ *
+ * The panel lives in a shadow root, so the host page's CSS cannot reach in and
+ * nothing here leaks out.
+ *
+ * The running total counts messages SENT, never keystrokes. The panel
+ * re-advises as you type; counting those would turn one message into forty and
+ * make the headline number worthless.
  */
 
 (() => {
@@ -36,7 +39,7 @@
   window.__laneAdvisor = true;
 
   const DEBOUNCE_MS = 320;
-  const MIN_WORDS = 3;                   // below this there is nothing to read
+  const MIN_WORDS = 3;
 
   const DEV_SITE =
     /^(127\.0\.0\.1|localhost)$/.test(location.hostname)
@@ -51,21 +54,25 @@
   if (!SITE) return;
 
   const SITE_NAME = { claude: "Claude", chatgpt: "ChatGPT", gemini: "Gemini" }[SITE];
+  const BASE = DEV_SITE ? location.origin : "http://127.0.0.1:8080";
 
-  // In the dev harness the page is served BY lane, so same-origin is correct
-  // and immune to the port having moved. In the extension the port is whatever
-  // `lane config port` says, which this script cannot read — so it tries the
-  // default and a stored override wins.
-  let ENDPOINT = DEV_SITE
-    ? location.origin + "/lane/advise"
-    : "http://127.0.0.1:8080/lane/advise";
-  try {
-    if (!DEV_SITE && typeof chrome !== "undefined" && chrome.storage) {
-      chrome.storage.local.get("endpoint", (v) => {
-        if (v && v.endpoint) ENDPOINT = v.endpoint;
-      });
-    }
-  } catch { /* not running as an extension; the default stands */ }
+  let variation = "save";                // the user's choice, remembered
+  const store = {
+    get(k, dflt, cb) {
+      try {
+        if (!DEV_SITE && typeof chrome !== "undefined" && chrome.storage)
+          return chrome.storage.local.get(k, (v) => cb((v || {})[k] ?? dflt));
+        cb(localStorage.getItem("lane." + k) ?? dflt);
+      } catch { cb(dflt); }
+    },
+    set(k, v) {
+      try {
+        if (!DEV_SITE && typeof chrome !== "undefined" && chrome.storage)
+          return chrome.storage.local.set({ [k]: v });
+        localStorage.setItem("lane." + k, v);
+      } catch { /* a preference that will not persist is not an error */ }
+    },
+  };
 
   const money = (n) =>
     n <= 0 ? "free"
@@ -82,17 +89,19 @@
   host.id = "lane-advisor-host";
   host.style.cssText =
     "position:fixed;right:18px;bottom:18px;z-index:2147483600;" +
-    "width:310px;pointer-events:none;";
+    "width:312px;pointer-events:none;";
   const root = host.attachShadow({ mode: "open" });
 
   root.innerHTML = `
 <style>
   :host { all: initial;
     --bg:#fff; --panel:#f6f7f9; --line:#e3e6ea; --ink:#14171a;
-    --dim:#6b7480; --faint:#99a1ac; --good:#1a8a5a; --alert:#c2410c; }
+    --dim:#6b7480; --faint:#99a1ac; --good:#1a8a5a; --alert:#c2410c;
+    --accent:#3b6df5; --accent-ink:#fff; }
   @media (prefers-color-scheme: dark) {
     :host { --bg:#171a1f; --panel:#1e222a; --line:#2b313a; --ink:#e8eaed;
-            --dim:#9aa3ae; --faint:#6d7681; --good:#4ec98a; --alert:#fb923c; }
+            --dim:#9aa3ae; --faint:#6d7681; --good:#4ec98a; --alert:#fb923c;
+            --accent:#5b87ff; --accent-ink:#0b0d10; }
   }
   * { box-sizing: border-box; }
   .card {
@@ -107,13 +116,21 @@
   }
   .card.show { transform: translateY(0); opacity: 1; }
 
-  .top { display:flex; align-items:center; gap:8px; padding:8px 11px;
+  .top { display:flex; align-items:center; gap:7px; padding:7px 9px 7px 11px;
          background:var(--panel); border-bottom:1px solid var(--line); }
   .brand { font-size:10px; font-weight:700; letter-spacing:.11em;
            color:var(--faint); }
   .grow { flex:1; }
+  .seg { display:flex; gap:2px; background:var(--bg); padding:2px;
+         border:1px solid var(--line); border-radius:7px; }
+  .seg button { border:0; background:transparent; color:var(--dim);
+                font:inherit; font-size:10px; font-weight:700;
+                letter-spacing:.06em; padding:3px 9px; border-radius:5px;
+                cursor:pointer; }
+  .seg button[aria-pressed="true"] { background:var(--accent);
+                                     color:var(--accent-ink); }
   .x { border:0; background:transparent; color:var(--faint); cursor:pointer;
-       font-size:15px; line-height:1; padding:2px 5px; border-radius:5px; }
+       font-size:15px; line-height:1; padding:2px 4px; border-radius:5px; }
   .x:hover { color:var(--ink); background:var(--line); }
 
   .body { padding: 10px 11px 11px; }
@@ -132,6 +149,7 @@
            font-variant-numeric:tabular-nums; }
   .save { margin-top:4px; font-size:11.5px; color:var(--good); font-weight:600; }
   .same { margin-top:4px; font-size:11.5px; color:var(--dim); }
+  .fit  { margin-top:4px; font-size:11.5px; color:var(--dim); }
 
   table { width:100%; margin-top:9px; border-collapse:collapse;
           font-size:11px; color:var(--dim); }
@@ -152,6 +170,12 @@
   .go .site { font-weight:650; }
   .go .mdl { color:var(--dim); flex:1; }
   .go .p { font-variant-numeric:tabular-nums; color:var(--dim); }
+
+  .score { border-top:1px solid var(--line); background:var(--panel);
+           padding:7px 11px; font-size:10.5px; color:var(--dim);
+           display:flex; align-items:baseline; gap:6px; }
+  .score b { color:var(--good); font-size:11.5px; }
+  .score .n { margin-left:auto; color:var(--faint); }
 
   .offline { padding:11px; font-size:11.5px; color:var(--dim); }
   .offline code { background:var(--panel); padding:1px 5px; border-radius:4px; }
@@ -178,21 +202,43 @@
   <div class="top">
     <span class="brand">L.A.N.E.</span>
     <span class="grow"></span>
+    <div class="seg" id="seg" role="group" aria-label="What to optimise for">
+      <button data-v="save" aria-pressed="true"  title="Cheapest model that still does the job">SAVE</button>
+      <button data-v="best" aria-pressed="false" title="Model whose strengths fit this request">BEST</button>
+    </div>
     <button class="x" id="close" title="Hide until next reload">×</button>
   </div>
   <div id="content"></div>
+  <div class="score" id="score" style="display:none"></div>
 </div>`;
 
   document.documentElement.appendChild(host);
 
   const card = root.getElementById("card");
   const content = root.getElementById("content");
+  const scoreEl = root.getElementById("score");
   let dismissed = false;
+  let last = null;                       // the advice currently on screen
 
   root.getElementById("close").addEventListener("click", () => {
     dismissed = true;
     hide();
   });
+
+  root.getElementById("seg").addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    setVariation(b.dataset.v);
+    if (lastText) advise(lastText);      // re-ask immediately, same message
+  });
+
+  function setVariation(v) {
+    variation = v;
+    for (const b of root.getElementById("seg").children)
+      b.setAttribute("aria-pressed", String(b.dataset.v === v));
+    store.set("variation", v);
+  }
+  store.get("variation", "save", (v) => setVariation(v === "best" ? "best" : "save"));
 
   const show = () => card.classList.add("show");
   const hide = () => card.classList.remove("show");
@@ -208,9 +254,6 @@
       </div>`;
   }
 
-  /* The site cannot do this at all. Showing its best model would be a
-     confidently wrong answer on the one request where the wrongness becomes
-     obvious within seconds. */
   function renderElsewhere(a) {
     const rows = (a.elsewhere || []).slice(0, 3).map((e) => `
       <div class="go">
@@ -239,20 +282,29 @@
         <td class="p">${money(o.cost)}</td>
       </tr>`).join("");
 
-    const saving = a.is_top
-      ? `<div class="same">Nothing lighter clears the bar.</div>`
-      : `<div class="save">saves ${money(a.saving)} · ${a.factor}× cheaper than ${esc((a.top || {}).display)}</div>`;
+    // SAVE leads with the money; BEST leads with why this model suits the job.
+    // Same data, different question, so a different headline.
+    let headline;
+    if (a.variation === "best") {
+      headline = a.fit
+        ? `<div class="fit">${esc(a.fit)}</div>`
+        : `<div class="same">the strongest fit available to you</div>`;
+    } else if (a.is_top) {
+      headline = `<div class="same">Nothing lighter clears the bar.</div>`;
+    } else {
+      headline = `<div class="save">saves ${money(a.saving)} · ${a.factor}× cheaper than ${esc((a.top || {}).display)}</div>`;
+    }
 
     content.innerHTML = `
       <div class="body">
         ${header(a)}
         <div class="pick">
-          <div class="label">Use on ${esc(SITE_NAME)}</div>
+          <div class="label">${a.variation === "best" ? "Best fit on" : "Cheapest that fits on"} ${esc(SITE_NAME)}</div>
           <div class="row">
             <span class="name">${esc(rec.display)}</span>
             <span class="price">${money(rec.cost)}</span>
           </div>
-          ${saving}
+          ${headline}
         </div>
         ${rows ? `<table>${rows}</table>` : ""}
         <div class="why">${esc(a.explain)}</div>
@@ -267,6 +319,21 @@
         panel will pick up on its own.
       </div>`;
     show();
+  }
+
+  /* The scoreboard. Deliberately says "could have saved": LANE cannot see
+     which model you actually picked, and a tool that counts its own advice as
+     though it were always taken is flattering itself with the very number it
+     is selling on. */
+  async function refreshScore() {
+    try {
+      const s = await (await fetch(BASE + "/lane/advice-stats")).json();
+      if (!s.messages) { scoreEl.style.display = "none"; return; }
+      scoreEl.style.display = "flex";
+      scoreEl.innerHTML =
+        `could have saved <b>${money(s.potential_saving)}</b>` +
+        `<span class="n">${s.messages} message${s.messages === 1 ? "" : "s"}</span>`;
+    } catch { scoreEl.style.display = "none"; }
   }
 
   // ── reading the composer ─────────────────────────────────────────────────
@@ -285,7 +352,7 @@
            el.isContentEditable;
   }
 
-  let timer = null, lastSent = "", offline = false;
+  let timer = null, lastText = "", offline = false;
 
   function onType(e) {
     if (dismissed || !isComposer(e.target)) return;
@@ -293,42 +360,58 @@
 
     if (text.split(/\s+/).filter(Boolean).length < MIN_WORDS) {
       hide();
-      lastSent = "";
+      lastText = "";
+      last = null;
       return;
     }
-    if (text === lastSent) return;
+    if (text === lastText) return;
 
     clearTimeout(timer);
+    lastText = text;
     timer = setTimeout(() => advise(text), DEBOUNCE_MS);
   }
 
   async function advise(text) {
-    lastSent = text;
     try {
-      const res = await fetch(ENDPOINT, {
+      const res = await fetch(BASE + "/lane/advise", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, site: SITE }),
+        body: JSON.stringify({ text, site: SITE, variation }),
       });
       if (!res.ok) throw new Error(res.status);
       offline = false;
       const a = await res.json();
+      last = a;
       if (a.unavailable_here) renderElsewhere(a);
       else renderAdvice(a);
+      refreshScore();
     } catch {
-      // The panel must never become the reason a page misbehaves. A LANE that
-      // is not running is a normal state, not an error worth shouting about.
+      // A LANE that is not running is a normal state, not an error worth
+      // shouting about. The panel must never be why a page misbehaves.
+      last = null;
       if (!offline) { offline = true; renderOffline(); }
     }
   }
 
   document.addEventListener("input", onType, true);
 
-  // Sending clears the composer, so retire the advice with it rather than
-  // leaving a stale recommendation hanging over an empty box.
+  // Sending is the moment the advice was either taken or ignored, so it is the
+  // only honest thing to count. Keystrokes are not messages.
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey && isComposer(e.target)) {
-      setTimeout(() => { hide(); lastSent = ""; }, 60);
+    if (e.key !== "Enter" || e.shiftKey || !isComposer(e.target)) return;
+    const a = last;
+    if (a && !a.unavailable_here && a.recommend && a.top) {
+      fetch(BASE + "/lane/advice-log", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          lane: a.lane, site: SITE, model: a.recommend.id,
+          top: a.top.id, est_in: a.est_in, est_out: a.est_out,
+        }),
+      }).then(refreshScore).catch(() => {});
     }
+    setTimeout(() => { hide(); lastText = ""; last = null; }, 60);
   }, true);
+
+  refreshScore();
 })();

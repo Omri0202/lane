@@ -82,6 +82,25 @@ def _error(status: int, message: str, kind: str = "invalid_request_error"):
         content={"error": {"message": message, "type": kind, "code": None}})
 
 
+def _header_safe(text: str, limit: int = 180) -> str:
+    """HTTP headers are latin-1. Any character outside it raises on send.
+
+    Reasons are written for people, and people get em-dashes, curly quotes and
+    accents. One of those reaching x-lane-reason did not produce a formatting
+    blemish - it produced a 500 on the proxy's happy path, for every response
+    that carried it. Sanitising here rather than policing the wording makes the
+    failure impossible instead of merely unlikely.
+    """
+    text = (text or "").replace("\n", " ").replace("\r", " ")
+    for src, dst in (
+            ("\u2014", "-"), ("\u2013", "-"),
+            ("\u2018", "'"), ("\u2019", "'"),
+            ("\u201c", '"'), ("\u201d", '"'),
+            ("\u2026", "..."), ("\u00d7", "x"), ("\u2192", "->")):
+        text = text.replace(src, dst)
+    return text.encode("latin-1", "replace").decode("latin-1")[:limit]
+
+
 def _headers(decision: policy.Decision) -> dict:
     if not config.get("report_headers"):
         return {}
@@ -91,10 +110,10 @@ def _headers(decision: policy.Decision) -> dict:
         "x-lane-lane": decision.lane,
         "x-lane-mode": decision.mode,
         "x-lane-tier": str(decision.tier),
-        "x-lane-reason": decision.reason[:180].replace("\n", " "),
+        "x-lane-reason": _header_safe(decision.reason),
     }
     if decision.degraded:
-        h["x-lane-degraded"] = decision.degraded_note[:180]
+        h["x-lane-degraded"] = _header_safe(decision.degraded_note)
     return h
 
 
@@ -650,15 +669,26 @@ async def advise(request: Request):
         row = {"mode": mode, "id": d.model.id, "display": d.model.display,
                "tier": d.model.tier, "degraded": d.degraded,
                "cost": round(cost_of(d.model), 6),
-               "per_image": d.model.kind == "image"}
+               "per_image": d.model.kind == "image",
+               "fit": d.reason}
         out["options"].append(row)
         seen.add(d.model.id)
 
     top = max(servable, key=lambda m: m.tier)
-    default_mode = config.get("mode")
-    rec_row = next((o for o in out["options"] if o["mode"] == default_mode),
+
+    # THE TWO VARIATIONS. "save" is the reason most people install this; "best"
+    # is the reason they keep it when the answer matters. They are named on the
+    # wire rather than derived from a server setting, because the choice
+    # belongs to whoever is typing, message by message.
+    variation = (body.get("variation") or "save").lower()
+    wanted_mode = (config.MODE_PERFORMANCE if variation in ("best", "performance")
+                   else config.MODE_SAVE)
+    out["variation"] = "best" if wanted_mode == config.MODE_PERFORMANCE else "save"
+
+    rec_row = next((o for o in out["options"] if o["mode"] == wanted_mode),
                    out["options"][0] if out["options"] else None)
     rec = catalog.by_id(rec_row["id"]) if rec_row else top
+    out["fit"] = rec_row.get("fit", "") if rec_row else ""
 
     rec_cost, top_cost = cost_of(rec), cost_of(top)
     factor = round(top_cost / rec_cost, 1) if rec_cost > 0 else 1.0
@@ -671,8 +701,93 @@ async def advise(request: Request):
     out["factor"] = factor
     out["is_top"] = rec.id == top.id
     out["saving"] = round(top_cost - rec_cost, 6)
-    out["explain"] = _explain(lane, rec, top, factor, is_image, [])
+
+    if out["variation"] == "best":
+        # BEST must say what the extra money BUYS, and must not contradict what
+        # SAVE says about the same message. Reusing the save wording here
+        # produced "nothing cheaper clears the bar" on a request where the save
+        # view had just named something cheaper that did — the two variations
+        # disagreeing about the same sentence, in the same panel, one click
+        # apart.
+        save_row = next((o for o in out["options"]
+                         if o["mode"] == config.MODE_SAVE), None)
+        cheap = catalog.by_id(save_row["id"]) if save_row else None
+        if cheap and cheap.id != rec.id and save_row["cost"] > 0:
+            times = round(rec_cost / save_row["cost"], 1)
+            out["explain"] = (
+                f"{times}x the price of the cheapest model that would cope. "
+                f"Worth it when the answer matters more than the bill; "
+                f"switch to SAVE when it does not.")
+        else:
+            out["explain"] = ("The cheapest model that can do this is also the "
+                              "one best suited to it — no trade-off here.")
+    else:
+        out["explain"] = _explain(lane, rec, top, factor, is_image, [])
     return JSONResponse(out, headers=cors)
+
+
+@app.options("/lane/advice-log")
+async def advice_log_preflight(request: Request):
+    return Response(status_code=204,
+                    headers=_cors(request.headers.get("origin")))
+
+
+@app.post("/lane/advice-log")
+async def advice_log(request: Request):
+    """Record that one recommendation was actually made and read.
+
+    Called when the message is SENT, never on every keystroke — the panel
+    re-advises as you type, and counting those would turn one message into
+    forty and make the headline number meaningless.
+
+    What it stores is a POTENTIAL saving. LANE cannot see which model you went
+    on to pick, and a tool that counts its own advice as if it were always
+    taken is flattering itself with the number it is selling on. The wording
+    everywhere downstream says so.
+    """
+    cors = _cors(request.headers.get("origin"))
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "bad json"}, status_code=400,
+                            headers=cors)
+
+    rec = catalog.by_id(body.get("model") or "")
+    top = catalog.by_id(body.get("top") or "")
+    if not rec or not top:
+        return JSONResponse({"ok": False, "reason": "unknown model"},
+                            headers=cors)
+
+    in_tokens = int(body.get("est_in") or 0)
+    out_tokens = int(body.get("est_out") or 0)
+    row = ledger.advice(
+        lane=body.get("lane") or "?", site=body.get("site") or "?",
+        recommended=rec.id, top=top.id,
+        rec_cost=rec.cost_for(in_tokens, out_tokens),
+        top_cost=top.cost_for(in_tokens, out_tokens),
+        in_tokens=in_tokens, out_tokens=out_tokens)
+    return JSONResponse({"ok": True, "saved": row["saved"]}, headers=cors)
+
+
+@app.options("/lane/advice-stats")
+async def advice_stats_preflight(request: Request):
+    return Response(status_code=204,
+                    headers=_cors(request.headers.get("origin")))
+
+
+@app.get("/lane/advice-stats")
+async def advice_stats(request: Request, days: float | None = None):
+    """The running total the panel shows. Potential, and labelled as such."""
+    s = ledger.stats(days, source="advisor")
+    t = s["total"]
+    return JSONResponse({
+        "messages": t["requests"],
+        "would_cost": round(t["baseline_cost"], 6),
+        "would_spend": round(t["cost"], 6),
+        "potential_saving": round(t["saved"], 6),
+        "pct": round(t["saved_pct"], 1),
+        "by_lane": {k: v["requests"] for k, v in s["by_lane"].items()},
+    }, headers=_cors(request.headers.get("origin")))
 
 
 @app.get("/lane/stats")
