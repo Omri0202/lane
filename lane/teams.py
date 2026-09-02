@@ -51,6 +51,34 @@ PREFIX = "lane-sk-"
 MONTHLY, DAILY, TOTAL = "monthly", "daily", "total"
 PERIODS = (MONTHLY, DAILY, TOTAL)
 
+#: Three roles, because three is what the question actually has.
+#:
+#:   member  may send requests. The default, and what almost every key is.
+#:   viewer  may read spend and reports and may NOT send requests. For a
+#:           finance owner or a manager who needs the numbers without being
+#:           able to run up the bill they are reviewing.
+#:   admin   may do both, and may manage teams over HTTP.
+#:
+#: Resisting a longer list is deliberate. Every extra role is a decision
+#: somebody has to make at provisioning time, and a role nobody can explain in
+#: one sentence gets assigned by guesswork.
+MEMBER, VIEWER, ADMIN = "member", "viewer", "admin"
+ROLES = (MEMBER, VIEWER, ADMIN)
+
+#: What each role is allowed to do. Checked by name so a new capability is one
+#: entry here rather than a condition scattered across the server.
+_CAN = {
+    MEMBER: {"infer"},
+    VIEWER: {"read"},
+    ADMIN: {"infer", "read", "manage"},
+}
+
+
+def can(team: dict | None, capability: str) -> bool:
+    if not team or team.get("disabled"):
+        return False
+    return capability in _CAN.get(team.get("role", MEMBER), set())
+
 
 def _file():
     return config.HOME / "teams.json"
@@ -103,7 +131,8 @@ def slug(name: str) -> str:
 
 
 def create(name: str, *, budget: float = 0.0, period: str = MONTHLY,
-           hard: bool = True) -> tuple[dict, str]:
+           hard: bool = True, role: str = MEMBER,
+           allowed_models: list | None = None) -> tuple[dict, str]:
     """Make a team and mint its key. The key is returned ONCE and never stored.
 
     Returns (team, key). If the caller loses the key the only route back is
@@ -116,6 +145,8 @@ def create(name: str, *, budget: float = 0.0, period: str = MONTHLY,
         raise ValueError(f"a team called {team_id!r} already exists")
     if period not in PERIODS:
         raise ValueError(f"period must be one of {', '.join(PERIODS)}")
+    if role not in ROLES:
+        raise ValueError(f"role must be one of {', '.join(ROLES)}")
 
     key = PREFIX + secrets.token_urlsafe(32)
     team = {
@@ -128,6 +159,12 @@ def create(name: str, *, budget: float = 0.0, period: str = MONTHLY,
         #: through. Both are useful — a team that must never be interrupted
         #: still benefits from someone being told it went over.
         "hard": bool(hard),
+        "role": role,
+        #: Models this team may use. Empty means "whatever LANE can route to",
+        #: which is the right default — a restriction nobody asked for is a
+        #: support ticket waiting to happen. Set it when a team genuinely must
+        #: not reach the frontier models.
+        "allowed_models": list(allowed_models or []),
         "disabled": False,
         "created": time.time(),
         "created_iso": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -173,6 +210,45 @@ def set_budget(team_id: str, *, budget: float | None = None,
             team["hard"] = bool(hard)
         _save(data)
         return dict(team)
+
+
+def set_role(team_id: str, role: str) -> dict:
+    if role not in ROLES:
+        raise ValueError(f"role must be one of {', '.join(ROLES)}")
+    with _lock:
+        data = _load()
+        team = next((t for t in data["teams"] if t["id"] == team_id), None)
+        if team is None:
+            raise KeyError(team_id)
+        team["role"] = role
+        _save(data)
+        return dict(team)
+
+
+def set_allowed_models(team_id: str, models: list) -> dict:
+    with _lock:
+        data = _load()
+        team = next((t for t in data["teams"] if t["id"] == team_id), None)
+        if team is None:
+            raise KeyError(team_id)
+        team["allowed_models"] = list(models or [])
+        _save(data)
+        return dict(team)
+
+
+def permitted(team: dict | None, models: list) -> list:
+    """Filter a candidate pool down to what this team may use.
+
+    Applied BEFORE the router chooses, not after, so a restricted team gets
+    the best model it is allowed rather than a refusal for the one it is not.
+    A policy that produces errors instead of alternatives gets switched off.
+    """
+    if not team:
+        return models
+    allowed = set(team.get("allowed_models") or [])
+    if not allowed:
+        return models
+    return [m for m in models if m.id in allowed]
 
 
 def set_disabled(team_id: str, off: bool) -> dict:
@@ -265,6 +341,8 @@ def status(team_id: str) -> dict:
         "id": team_id, "name": team.get("name", team_id),
         "budget": budget, "period": team.get("period", MONTHLY),
         "hard": bool(team.get("hard", True)),
+        "role": team.get("role", MEMBER),
+        "allowed_models": list(team.get("allowed_models") or []),
         "disabled": bool(team.get("disabled")),
         "spent": used,
         "remaining": max(0.0, budget - used) if budget else None,

@@ -16,7 +16,7 @@ import json
 import sys
 
 from . import (audit, catalog, classify, config, keys, ledger, lanes,
-               policy, providers, teams)
+               policy, providers, teams, trail)
 
 _DIM, _B, _R = "\033[2m", "\033[1m", "\033[0m"
 _G, _Y, _RED = "\033[32m", "\033[33m", "\033[31m"
@@ -451,7 +451,7 @@ async def _judge_all(rows, model_id: str) -> int:
     return done
 
 
-def cmd_audit(args) -> int:
+def cmd_quality(args) -> int:
     rows = audit.read()
     if args.judge:
         pending = [r for r in rows if not r.get("verdict")]
@@ -523,6 +523,72 @@ def cmd_audit(args) -> int:
 
 
 
+
+# ── lane audit — the trail ───────────────────────────────────────────────────
+
+def cmd_audit(args) -> int:
+    """Who did what, and whether the record has been altered since."""
+    if args.verify or args.seal:
+        v = trail.verify()
+        print()
+        if v["ok"]:
+            print(f"  {c('chain intact', _G)} - {v['entries']} entries")
+            if args.seal:
+                print()
+                print("  " + c("head hash - record this somewhere LANE cannot "
+                               "reach:", _DIM))
+                print(f"  {c(v['head'], _B)}")
+                print()
+                print("  " + c("Anyone who can write the file can also append "
+                               "to it, and truncating", _DIM))
+                print("  " + c("the end leaves a chain that still verifies. A "
+                               "hash held elsewhere", _DIM))
+                print("  " + c("makes that truncation provable.", _DIM))
+        else:
+            print(f"  {c('CHAIN BROKEN', _RED)} - {v['message']}")
+            print(f"  {c('reason: ' + v['reason'], _DIM)}")
+        print()
+        return 0 if v["ok"] else 1
+
+    rows = trail.read()
+    if args.actor:
+        rows = [r for r in rows if r.get("actor") == args.actor]
+    if args.action:
+        rows = [r for r in rows if str(r.get("action", "")).startswith(args.action)]
+
+    if not rows:
+        print()
+        print("  nothing recorded yet.")
+        print("  " + c("the trail fills as teams are created, keys rotated, "
+                       "budgets changed", _DIM))
+        print("  " + c("and requests served.", _DIM))
+        print()
+        return 0
+
+    shown = rows[-args.n:]
+    print()
+    print(_rule(f"audit trail \u00b7 last {len(shown)} of {len(rows)}"))
+    for r in shown:
+        if "_corrupt" in r:
+            print(f"  {c('CORRUPT LINE', _RED)} {r['_corrupt'][:70]}")
+            continue
+        when = str(r.get("iso", ""))[:19].replace("T", " ")
+        actor = str(r.get("actor", "?"))[:14]
+        tone = _RED if str(r.get("action", "")).startswith(("auth.", "request.refused")) else _DIM
+        print(f"  {c(str(r.get('seq', '')).rjust(4), _DIM)} "
+              f"{c(when, _DIM)}  {c(actor.ljust(14), tone)} "
+              f"{trail.describe(r)}")
+
+    v = trail.verify()
+    print()
+    print("  " + (c(f"chain intact ({v['entries']} entries)", _G) if v["ok"]
+                  else c("CHAIN BROKEN - " + v["message"], _RED)))
+    print("  " + c("prompts are never recorded here - only who, when and "
+                   "what.", _DIM))
+    print()
+    return 0 if v["ok"] else 1
+
+
 # ── lane team / lane spend ───────────────────────────────────────────────────
 
 def _bar(fraction: float, width: int = 22) -> str:
@@ -549,8 +615,12 @@ def cmd_team(args) -> int:
         for t in rows:
             st = teams.status(t["id"])
             mark = c("\u25cf", _G) if not st["disabled"] else c("\u25cb", _RED)
-            head = f"  {mark} {st['name']}  {c('(' + st['id'] + ')', _DIM)}"
-            print(head)
+            role = st.get("role", teams.MEMBER)
+            tone = _Y if role == teams.ADMIN else _DIM
+            print(f"  {mark} {st['name']}  {c('(' + st['id'] + ')', _DIM)}"
+                  f"  {c(role, tone)}")
+            if st.get("allowed_models"):
+                print(f"      {c('limited to: ' + ', '.join(st['allowed_models'][:3]), _DIM)}")
             if st["budget"]:
                 pct = st["fraction"]
                 tone = _RED if pct >= 1 else (_Y if pct >= 0.8 else _G)
@@ -575,14 +645,19 @@ def cmd_team(args) -> int:
         try:
             team, key = teams.create(
                 args.name, budget=args.budget or 0.0,
-                period=args.period, hard=not args.soft)
+                period=args.period, hard=not args.soft,
+                role=args.role or teams.MEMBER)
         except ValueError as exc:
             print(c(str(exc), _RED))
             return 1
 
+        trail.record(trail.TEAM_CREATED, target=team["id"],
+                     detail={"budget": team["budget"], "period": team["period"],
+                             "hard": team["hard"], "role": team["role"]})
         print()
         print(f"  {c('created', _G)} {team['name']}  "
-              + c("(" + team["id"] + ")", _DIM))
+              + c("(" + team["id"] + ")", _DIM)
+              + c("  role: " + team["role"], _DIM))
         if team["budget"]:
             kind = "hard - requests are refused at the limit" if team["hard"] \
                 else "soft - requests are allowed, but flagged"
@@ -619,6 +694,7 @@ def cmd_team(args) -> int:
         except KeyError:
             print(c(f"no team {team_id!r}", _RED))
             return 1
+        trail.record(trail.KEY_ROTATED, target=team_id)
         print()
         print(f"  {c('rotated', _G)} - the previous key stopped working now.")
         print(f"  {c(key, _B)}")
@@ -636,8 +712,46 @@ def cmd_team(args) -> int:
         except (KeyError, ValueError) as exc:
             print(c(str(exc), _RED))
             return 1
+        trail.record(trail.BUDGET_CHANGED, target=team_id,
+                     detail={"budget": t["budget"], "period": t["period"],
+                             "hard": t["hard"]})
         print(f"{c('set', _G)} {t['name']}: {ledger.money(t['budget'])} "
               f"{t['period']} ({'hard' if t['hard'] else 'soft'})")
+        return 0
+
+    if action == "role":
+        if not args.role:
+            print(f"which role? one of {', '.join(teams.ROLES)}")
+            return 2
+        try:
+            t = teams.set_role(team_id, args.role)
+        except (KeyError, ValueError) as exc:
+            print(c(str(exc), _RED))
+            return 1
+        trail.record(trail.ROLE_CHANGED, target=team_id,
+                     detail={"role": t["role"]})
+        print(f"{c('set', _G)} {t['name']} role to {t['role']}")
+        return 0
+
+    if action == "models":
+        allowed = [m for m in (args.models or "").split(",") if m.strip()]
+        known = {m.id for m in catalog.all_models()}
+        unknown = [m for m in allowed if m not in known]
+        if unknown:
+            print(c(f"not in the catalog: {', '.join(unknown)}", _RED))
+            return 1
+        try:
+            t = teams.set_allowed_models(team_id, allowed)
+        except KeyError:
+            print(c(f"no team {team_id!r}", _RED))
+            return 1
+        trail.record(trail.MODELS_RESTRICTED, target=team_id,
+                     detail={"allowed": allowed})
+        if allowed:
+            print(f"{c('restricted', _G)} {t['name']} to "
+                  f"{len(allowed)} model(s)")
+        else:
+            print(f"{c('cleared', _G)} the model restriction on {t['name']}")
         return 0
 
     if action in ("disable", "enable"):
@@ -646,11 +760,14 @@ def cmd_team(args) -> int:
         except KeyError:
             print(c(f"no team {team_id!r}", _RED))
             return 1
+        trail.record(trail.TEAM_DISABLED if action == "disable"
+                     else trail.TEAM_ENABLED, target=team_id)
         print(f"{c(action + 'd', _G)} {t['name']}")
         return 0
 
     if action in ("rm", "remove", "delete"):
         if teams.remove(team_id):
+            trail.record(trail.TEAM_REMOVED, target=team_id)
             print(f"removed {team_id} - its key no longer works")
             print(c("  past spend stays in the ledger for the record", _DIM))
             return 0
@@ -872,18 +989,29 @@ def build_parser() -> argparse.ArgumentParser:
     s.set_defaults(func=cmd_config)
 
     s = sub.add_parser(
-        "audit",
+        "quality",
         help="prove the cheap route was good enough, on your own traffic")
     s.add_argument("--judge", action="store_true",
                    help="grade the sampled pairs with the judge model")
     s.add_argument("--show", type=int, default=0, metavar="N",
                    help="print the last N pairs in full")
+    s.set_defaults(func=cmd_quality)
+
+    s = sub.add_parser("audit", help="the tamper-evident record of who did what")
+    s.add_argument("-n", type=int, default=30, help="how many entries to show")
+    s.add_argument("--verify", action="store_true",
+                   help="check the hash chain and report where it breaks")
+    s.add_argument("--seal", action="store_true",
+                   help="print the head hash, to be recorded off-machine")
+    s.add_argument("--actor", help="only entries by this team or actor")
+    s.add_argument("--action", help="only actions with this prefix, e.g. key.")
     s.set_defaults(func=cmd_audit)
 
     s = sub.add_parser("team", help="issue keys, set budgets, see who spent what")
     s.add_argument("action", nargs="?",
-                   choices=["list", "add", "rotate", "budget", "disable",
-                            "enable", "rm", "remove", "delete"])
+                   choices=["list", "add", "rotate", "budget", "role",
+                            "models", "disable", "enable", "rm", "remove",
+                            "delete"])
     s.add_argument("name", nargs="?", help="team name, or id for later actions")
     s.add_argument("budget", nargs="?", type=float,
                    help="budget in USD, for add and budget")
@@ -892,6 +1020,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--period", default=teams.MONTHLY, choices=list(teams.PERIODS))
     s.add_argument("--soft", action="store_const", const=True, default=None,
                    help="warn at the limit instead of refusing")
+    s.add_argument("--role", choices=list(teams.ROLES),
+                   help="member sends requests, viewer only reads reports, "
+                        "admin does both")
+    s.add_argument("--models", help="comma-separated model ids this team may "
+                                    "use; empty clears the restriction")
     s.set_defaults(func=cmd_team)
 
     s = sub.add_parser("spend", help="what each team spent, and against what budget")

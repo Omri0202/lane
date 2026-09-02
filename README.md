@@ -438,7 +438,7 @@ make that failure impossible to miss again.
 
 ---
 
-## Proving it — the quality audit
+## Proving it — the quality report
 
 Every cost router makes the same claim and none of them proves it: that the
 smaller model answered as well as the expensive one would have. The claim is
@@ -458,7 +458,7 @@ model, once by the baseline it is being compared against. Both answers are
 kept. Then:
 
 ```bash
-lane audit --judge
+lane quality --judge
 ```
 
 ```
@@ -603,7 +603,7 @@ system could be sidestepped by omitting a header.
 | `lane tail` | the last requests, one line each |
 | `lane config <key> <value>` | change a setting |
 | `lane audit` | what the routing cost in quality, measured |
-| `lane audit --judge` | grade the sampled pairs |
+| `lane quality --judge` | grade the sampled pairs |
 | `lane team` | issue keys, set budgets, see who spent what |
 | `lane team add <name> <budget>` | create a team and mint its key |
 | `lane team rotate <id>` | new key, old one dead immediately |

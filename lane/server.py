@@ -30,7 +30,7 @@ from fastapi import FastAPI, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from . import (audit, catalog, classify, config, keys, ledger, lanes,
-               policy, providers, teams)
+               policy, providers, teams, trail)
 from .lanes import Lane
 from .providers import ProviderError
 
@@ -184,27 +184,55 @@ async def chat_completions(request: Request):
     if header_mode in config.MODES:
         mode = header_mode
 
-    try:
-        if pinned:
-            decision = _pinned_decision(pinned, messages, tools)
-        else:
-            decision = policy.route(
-                messages, tools=tools, mode=mode, forced_lane=forced_lane,
-                want_output=int(body.get("max_tokens") or 1024))
-    except policy.NoModelAvailable as exc:
-        return _error(503, str(exc), "service_unavailable")
-
-    # Whose budget is this? Only asked once a team exists — before that LANE
-    # is a personal tool and demanding a header would be friction for nobody.
+    # Identify the caller BEFORE routing, because a team's model restriction
+    # changes which models the router is allowed to consider. Applying it
+    # afterwards would mean refusing a request the router could have served
+    # from the permitted set — a policy that produces errors instead of
+    # alternatives is a policy that gets switched off.
     team = None
     if teams.enabled():
         team = teams.authenticate(request.headers.get("authorization"))
         if team is None:
+            trail.record(trail.AUTH_FAILED, actor="unknown")
             return _error(
                 401,
                 "this LANE requires a team key. Ask whoever runs it for one, "
                 "and send it as `Authorization: Bearer lane-sk-...`.",
                 "authentication_error")
+        if not teams.can(team, "infer"):
+            trail.record(trail.REQUEST_REFUSED, actor=team["id"],
+                         detail={"why": f"role {team.get('role')} cannot infer"})
+            return _error(
+                403,
+                f"the {team.get('name', team['id'])} key has the "
+                f"{team.get('role', 'member')} role, which can read reports "
+                f"but not send requests.",
+                "permission_denied")
+
+    pool = teams.permitted(team, catalog.usable()) if team else None
+    if pool is not None and not pool:
+        return _error(
+            503,
+            f"{team.get('name', team['id'])} is restricted to models LANE "
+            f"cannot currently reach. Check `lane team list` and `lane doctor`.",
+            "service_unavailable")
+
+    try:
+        if pinned:
+            decision = _pinned_decision(pinned, messages, tools)
+            if pool is not None and decision.model.id not in {m.id for m in pool}:
+                return _error(
+                    403,
+                    f"{team.get('name', team['id'])} is not permitted to use "
+                    f"{decision.model.id}.", "permission_denied")
+        else:
+            decision = policy.route(
+                messages, tools=tools, mode=mode, forced_lane=forced_lane,
+                want_output=int(body.get("max_tokens") or 1024), models=pool)
+    except policy.NoModelAvailable as exc:
+        return _error(503, str(exc), "service_unavailable")
+
+    if teams.enabled():
 
         # Charge the estimate against the budget BEFORE calling, so a ceiling
         # cannot be stepped over by one large request. A budget crossed once
@@ -213,6 +241,9 @@ async def chat_completions(request: Request):
                                        int(body.get("max_tokens") or 1024))
         ok, note = teams.check(team, estimate)
         if not ok:
+            trail.record(trail.REQUEST_REFUSED, actor=team["id"],
+                         target=decision.model.id,
+                         detail={"why": "over budget", "lane": decision.lane})
             return _error(402, note, "budget_exceeded")
         if note:
             budget_note = note
@@ -305,6 +336,15 @@ async def _json_response(decision: policy.Decision, body: dict,
                       in_tokens=usage.get("in", 0), out_tokens=usage.get("out", 0),
                       tier=str(current.tier), margin=current.margin, team=team,
                       latency_ms=int((time.perf_counter() - started) * 1000))
+        if team:
+            # Facts only. An audit log that accumulates the text of every
+            # question anyone asked is a data-protection liability that grows
+            # without bound.
+            trail.record(trail.REQUEST_SERVED, actor=team,
+                         target=model.id,
+                         detail={"lane": current.lane, "model": model.id,
+                                 "cost": round(model.cost(usage.get("in", 0),
+                                                          usage.get("out", 0)), 8)})
         await _maybe_audit(current, body, result, usage, team=team)
         return JSONResponse(content=result, headers=_headers(current))
 
@@ -977,6 +1017,7 @@ async def setup_key(request: Request):
 
     if body.get("remove"):
         keys.delete(provider)
+        trail.record(trail.PROVIDER_KEY_REMOVED, actor="setup", target=provider)
         return {"ok": True, "connected": False}
 
     value = (body.get("key") or "").strip()
@@ -997,6 +1038,8 @@ async def setup_key(request: Request):
         return _error(500, str(exc), "storage_error")
 
     catalog.reload()
+    trail.record(trail.PROVIDER_KEY_SET, actor="setup", target=provider,
+                 detail={"models_available": len(live)})
     return {"ok": True, "connected": True, "stored_in": where,
             "models_available": len(live), "warning": problem}
 
@@ -1023,6 +1066,8 @@ async def setup_models(request: Request):
     # a config file, which is a trap rather than a setting.
     config.set("enabled_models", chosen if len(chosen) < len(known) else [])
     catalog.reload()
+    trail.record(trail.CONFIG_CHANGED, actor="setup", target="enabled_models",
+                 detail={"value": f"{len(chosen)} of {len(known)} models"})
     return {"ok": True, "selected": len(chosen), "of": len(known)}
 
 
