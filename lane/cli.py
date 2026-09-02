@@ -16,7 +16,7 @@ import json
 import sys
 
 from . import (audit, catalog, classify, config, keys, ledger, lanes,
-               policy, providers, teams, trail)
+               policy, providers, refresh, teams, trail)
 
 _DIM, _B, _R = "\033[2m", "\033[1m", "\033[0m"
 _G, _Y, _RED = "\033[32m", "\033[33m", "\033[31m"
@@ -247,7 +247,73 @@ async def _sync() -> int:
     return 0
 
 
+
+async def _refresh(apply_it: bool) -> int:
+    """Fetch the published facts and show what they change."""
+    try:
+        live = await refresh.fetch()
+    except Exception as exc:
+        print(f"  {c('could not reach OpenRouter', _RED)}: {str(exc)[:120]}")
+        return 1
+
+    updates, unmatched, extra = refresh.plan(live)
+    print(f"  {c('✓', _G)} {len(live)} models published")
+
+    if not updates:
+        print(f"  {c('✓', _G)} your catalog already matches")
+    else:
+        print(f"\n  {c(str(len(updates)) + ' model(s) differ', _Y)}:")
+        for model, _record, changes in updates:
+            print(f"\n  {c(model.display, _B)} {c('(' + model.id + ')', _DIM)}")
+            for field, (old, new) in sorted(changes.items()):
+                arrow = c("->", _DIM)
+                if field in ("in_price", "out_price"):
+                    print(f"      {field:<12}${old} {arrow} {c('$' + str(new), _B)}"
+                          f"  per Mtok")
+                else:
+                    print(f"      {field:<12}{old} {arrow} {c(str(new), _B)}")
+
+    if unmatched:
+        print(f"\n  {c(str(len(unmatched)) + ' not listed by OpenRouter', _DIM)}"
+              f" — left exactly as they are:")
+        for m in unmatched[:8]:
+            print(f"      {c(m.id, _DIM)}")
+
+    if extra:
+        print(f"\n  {c(str(len(extra)) + ' models OpenRouter lists that you '
+                       'do not have', _DIM)}")
+        print(f"      {c('not added automatically — a catalog of hundreds is '
+                        'not a catalog', _DIM)}")
+
+    if not updates:
+        return 0
+    if not apply_it:
+        print(f"\n  {c('nothing written.', _DIM)} "
+              f"{c('run `lane models --refresh --apply` to accept these.', _B)}")
+        return 0
+
+    n = refresh.apply(updates)
+    trail.record(trail.CONFIG_CHANGED, actor="refresh", target="model_prices",
+                 detail={"value": f"{n} model(s) updated from openrouter"})
+    print(f"\n  {c('applied', _G)} — {n} model(s) written to "
+          f"{c(str(config.LOCAL_MODELS), _DIM)}")
+    print("  " + c("prices for those providers are no longer marked as "
+                   "guesses.", _DIM))
+    print("  " + c("tier and strengths were NOT touched: nobody publishes a "
+                   "quality", _DIM))
+    print("  " + c("ranking you can fetch, so those stay a judgement you can "
+                   "argue with.", _DIM))
+    return 0
+
+
 def cmd_models(args) -> int:
+    if args.refresh:
+        print()
+        print(_rule("refreshing prices and capabilities from openrouter"))
+        rc = asyncio.run(_refresh(args.apply))
+        print()
+        return rc
+
     if args.sync:
         print()
         print(_rule("syncing against each provider"))
@@ -984,6 +1050,12 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("models", help="show the catalog")
     s.add_argument("--sync", action="store_true",
                    help="ask each provider which models your key can reach")
+    s.add_argument("--refresh", action="store_true",
+                   help="fetch real prices and capabilities from OpenRouter's "
+                        "public catalogue")
+    s.add_argument("--apply", action="store_true",
+                   help="with --refresh, write the changes instead of only "
+                        "showing them")
     s.set_defaults(func=cmd_models)
 
     s = sub.add_parser("stats", help="what you spent, and what you saved")
