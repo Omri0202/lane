@@ -923,6 +923,17 @@ def cmd_serve(args) -> int:
           f"{c(f'http://{host}:{port}/v1', _B)}")
     print(f"  {n} routable model(s), default mode "
           f"{c(config.get('mode'), _B)}")
+
+    # Say this loudly. Creating a single team switches authentication on for
+    # everything, and the symptom - every request suddenly 401s - looks like a
+    # broken install rather than a setting somebody chose.
+    if teams.enabled():
+        names = ", ".join(t["id"] for t in teams.all_teams()[:4])
+        print(f"  {c('team keys required', _Y)} - "
+              f"{len(teams.all_teams())} team(s): {names}")
+        print("  " + c("requests without  "
+                       "will get 401.", _DIM))
+        print("  " + c("remove every team to go back to open mode.", _DIM))
     if not n:
         print(f"  {c('no keys yet — run `lane keys set anthropic`', _Y)}")
     print()
