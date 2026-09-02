@@ -146,6 +146,69 @@ def _guess_provider(model_id: str) -> str:
     return "openai"
 
 
+#: What a lane needs, said the way somebody typing into a chat box would say
+#: it. Used only when nothing they own can serve the request.
+_NEED_PHRASE = {
+    Lane.IMAGE_GEN: "a model that makes images",
+    Lane.VISION: "a model that reads images",
+    Lane.TOOLS: "a model that can call tools",
+    Lane.WEB_SEARCH: "a model that can search the web",
+}
+
+
+def _capability_offer(lane: str, prompt_tokens: int = 0) -> dict | None:
+    """Who could serve this, that the user has not given LANE a key for?
+
+    Returned instead of a bare failure. Somebody who asks for a picture and
+    gets "no available model can serve an image request" has learned nothing
+    they can act on; the useful answer names the model that can do it, what it
+    costs, and where to get the key — and then the same request works next
+    time. That loop is the product, and a 503 is the point it breaks.
+
+    None when the gap is not about capability at all, in which case the plain
+    error is the honest answer.
+    """
+    need = lanes.needs(lane)
+    kind = lanes.kind(lane)
+
+    def serves(m) -> bool:
+        if m.kind != kind:
+            return False
+        return all(getattr(m, cap, False) for cap in need)
+
+    # Only models they cannot reach today are worth offering.
+    have = set(keys.present())
+    candidates = [m for m in catalog.all_models()
+                  if serves(m) and m.provider not in have]
+    if not candidates:
+        return None
+
+    out_tokens = lanes.expected_output(lane)
+    best_per_provider: dict[str, dict] = {}
+    for m in sorted(candidates, key=lambda x: -x.tier):
+        meta = keys.PROVIDERS.get(m.provider) or {}
+        row = best_per_provider.setdefault(m.provider, {
+            "provider": m.provider,
+            "provider_name": meta.get("name", m.provider),
+            "console": meta.get("console", ""),
+            "models": [],
+        })
+        if len(row["models"]) < 2:
+            row["models"].append({
+                "id": m.id, "display": m.display,
+                "cost": round(m.cost_for(prompt_tokens, out_tokens), 6),
+                "per_image": m.kind == "image",
+            })
+
+    return {
+        "lane": lane,
+        "lane_label": lanes.label(lane),
+        "need": _NEED_PHRASE.get(lane, f"a model for {lanes.label(lane).lower()}"),
+        "providers": list(best_per_provider.values()),
+        "setup_url": f"http://{config.get('host')}:{config.get('port')}/setup",
+    }
+
+
 async def _call(decision: policy.Decision, body: dict, usage: dict):
     """Non-streaming call through the right adapter."""
     adapter = providers.get(decision.model.provider)
@@ -230,6 +293,21 @@ async def chat_completions(request: Request):
                 messages, tools=tools, mode=mode, forced_lane=forced_lane,
                 want_output=int(body.get("max_tokens") or 1024), models=pool)
     except policy.NoModelAvailable as exc:
+        # Before reporting a dead end, check whether it is really a capability
+        # gap — something they could fix by adding one key.
+        verdict = classify.classify(messages, tools=tools)
+        offer = _capability_offer(verdict["lane"],
+                                  policy.estimate_tokens(messages))
+        if offer:
+            names = ", ".join(p["provider_name"] for p in offer["providers"])
+            payload = {
+                "error": {
+                    "message": f"None of your models can do this — it needs "
+                               f"{offer['need']}. {names} can.",
+                    "type": "capability_unavailable", "code": None},
+                "lane": offer,
+            }
+            return JSONResponse(status_code=503, content=payload)
         return _error(503, str(exc), "service_unavailable")
 
     if teams.enabled():
@@ -650,6 +728,16 @@ def _price(x: float) -> str:
     return f"${x:,.2f}"
 
 
+#: What is missing, phrased for somebody mid-sentence in a chat box.
+_LACKS = {
+    Lane.IMAGE_GEN: "No model here draws pictures - it can only read them.",
+    Lane.VISION: "No model here reads images.",
+    Lane.TOOLS: "No model here calls tools.",
+    Lane.WEB_SEARCH: "No model here can search the web, so the answer would "
+                     "come from memory.",
+}
+
+
 def _explain(lane: str, rec, top, factor: float, images: bool,
              elsewhere: list) -> str:
     """One sentence saying why this recommendation is the right one.
@@ -658,12 +746,13 @@ def _explain(lane: str, rec, top, factor: float, images: bool,
     is a fact. "There is nothing here to reason about, so the difference buys
     you nothing" is a reason to click the dropdown.
     """
-    if images and elsewhere:
+    if rec is None and elsewhere:
         first = elsewhere[0]
-        return (f"No Claude model draws pictures — it can only read them. "
-                f"{first['site']} does this with {first['display']} for about "
-                f"{_price(first['cost'])} an image."
-                if rec is None else "")
+        lacks = _LACKS.get(lane, f"No model here handles "
+                                 f"{lanes.label(lane).lower()} work.")
+        unit = " an image" if images else ""
+        return (f"{lacks} {first['site']} does this with "
+                f"{first['display']} for about {_price(first['cost'])}{unit}.")
     if images and rec is not None:
         return (f"This needs an image generator, not a chat model. "
                 f"{rec.display} is billed per picture, not per token.")
@@ -771,12 +860,23 @@ async def advise(request: Request):
         return m.cost_for(in_tokens, out_tokens)
 
     # Can this site do the job at all?
-    servable = [m for m in here if m.kind == lanes.kind(lane)]
+    #
+    # Two ways it cannot. The KIND can be wrong — no chat model draws, whatever
+    # its capabilities. Or the kind is right and the capability is missing: the
+    # site has chat models but none that reads an image, or none that can
+    # search. Both end in the same advice, which is the name of a site that
+    # can, so both are answered here rather than only the first.
+    need = lanes.needs(lane)
+    servable = [m for m in here
+                if m.kind == lanes.kind(lane)
+                and all(getattr(m, cap, False) for cap in need)]
     if not servable:
         # Name who can. This is the one case where recommending a different
         # site is help rather than a chore.
         for m in catalog.all_models():
             if m.kind != lanes.kind(lane):
+                continue
+            if not all(getattr(m, cap, False) for cap in need):
                 continue
             out["elsewhere"].append({
                 "site": _PROVIDER_SITE.get(m.provider, m.provider),

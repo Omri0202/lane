@@ -118,6 +118,29 @@ textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 .empty p { margin: 0 auto; max-width: 460px; font-size: 14px; }
 .empty .routes { margin-top: 26px; font-size: 12.5px; display: inline-block; text-align: left; }
 .empty .routes div { margin: 4px 0; }
+/* The offer. Shown instead of an error when the only thing standing between
+   the user and an answer is a key they have not added yet. */
+.offer { border: 1px solid var(--line); border-radius: var(--radius);
+         background: var(--panel); padding: 14px; margin-top: 6px; }
+.offer .head { font-size: 13px; font-weight: 650; }
+.offer .sub { font-size: 13px; color: var(--dim); margin-top: 4px; }
+.offer .prov { margin-top: 12px; padding-top: 12px;
+               border-top: 1px solid var(--line); }
+.offer .pname { font-size: 13px; font-weight: 600; }
+.offer .mlist { font-size: 12.5px; color: var(--dim); margin-top: 2px; }
+.offer .keyrow { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
+.offer input { flex: 1 1 240px; font: inherit; font-size: 13px;
+               padding: 8px 10px; border: 1px solid var(--line);
+               border-radius: 9px; background: var(--bg); color: var(--ink); }
+.offer button { font: inherit; font-size: 13px; padding: 8px 14px;
+                border-radius: 9px; border: 0; cursor: pointer;
+                background: var(--accent); color: var(--accent-ink);
+                font-weight: 600; }
+.offer button:disabled { opacity: .5; cursor: default; }
+.offer .out { font-size: 12.5px; margin-top: 7px; }
+.offer .out.ok { color: var(--good); }
+.offer .out.bad { color: #d6455a; }
+.offer a { color: var(--accent); font-size: 12px; }
 .dots::after { content: "▍"; animation: blink 1.1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 </style>
@@ -166,6 +189,13 @@ let history = [];          // the conversation, in OpenAI shape
 let prices = {};           // model id -> {in, out, display}
 let laneLabels = {};
 let busy = false;
+
+// Provider names and model ids are shown inside built-up HTML in the offer,
+// and they come from a config file somebody edits by hand. Escaping them is
+// cheap; discovering later that a model id can inject markup is not.
+const esc = s => String(s == null ? "" : s)
+  .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
 const money = n =>
   n === 0 ? "$0"
@@ -261,6 +291,69 @@ function addMessage(who, text) {
 }
 const scroll = () => { $("main").scrollTop = $("main").scrollHeight; };
 
+/* A capability gap is not a failure, it is a missing key. Rendering it as an
+   error would send somebody off to read documentation; rendering it as a box
+   they can paste into keeps them in the conversation they were having, and the
+   very message they already typed goes through the moment the key lands. */
+function renderOffer(el, offer, retryText) {
+  el.querySelector(".meta").innerHTML = "";
+  const box = document.createElement("div");
+  box.className = "offer";
+
+  const rows = offer.providers.map(function (p) {
+    const models = p.models.map(function (m) {
+      return esc(m.display) + " \u00b7 " + money(m.cost)
+             + (m.per_image ? "/image" : "");
+    }).join(" \u00b7 ");
+    return '<div class="prov" data-p="' + esc(p.provider) + '">'
+      + '<div class="pname">' + esc(p.provider_name) + '</div>'
+      + '<div class="mlist">' + models + '</div>'
+      + '<div class="keyrow">'
+      + '<input type="password" autocomplete="off" spellcheck="false" '
+      + 'placeholder="paste your ' + esc(p.provider_name) + ' key">'
+      + '<button class="add">Add key and retry</button>'
+      + '<a href="' + esc(p.console) + '" target="_blank" rel="noreferrer">'
+      + 'get one</a></div><div class="out"></div></div>';
+  }).join("");
+
+  box.innerHTML = '<div class="head">None of your models can do this.</div>'
+    + '<div class="sub">It needs ' + esc(offer.need) + '. These can:</div>'
+    + rows;
+  el.querySelector(".bubble").replaceWith(box);
+
+  box.querySelectorAll(".prov").forEach(function (prov) {
+    const id = prov.dataset.p;
+    const input = prov.querySelector("input");
+    const btn = prov.querySelector(".add");
+    const out = prov.querySelector(".out");
+
+    btn.addEventListener("click", async function () {
+      const key = input.value.trim();
+      if (!key) { out.className = "out bad"; out.textContent = "nothing pasted"; return; }
+      btn.disabled = true;
+      out.className = "out";
+      out.textContent = "checking it with " + id + "...";
+      let r;
+      try {
+        r = await (await fetch("/lane/setup-key", {
+          method: "POST", headers: { "content-type": "application/json" },
+          body: JSON.stringify({ provider: id, key: key }),
+        })).json();
+      } catch (e) { r = { error: { message: "LANE is not responding" } }; }
+      btn.disabled = false;
+      if (r.error) { out.className = "out bad"; out.textContent = r.error.message; return; }
+      out.className = "out ok";
+      out.textContent = "connected - " + r.models_available
+        + " models available. Sending your message again...";
+      input.value = "";
+      input.disabled = true;
+      // The whole point of the loop: the message they already typed goes
+      // through now, without them retyping it.
+      setTimeout(function () { send(retryText); }, 500);
+    });
+  });
+}
+
 function renderMeta(el, { model, lane, degraded, usage, error }) {
   const meta = el.querySelector(".meta");
   if (error) { meta.innerHTML = `<span class="err">${error}</span>`; return; }
@@ -277,8 +370,8 @@ function renderMeta(el, { model, lane, degraded, usage, error }) {
 }
 
 // ── sending ────────────────────────────────────────────────────────────────
-async function send() {
-  const text = input.value.trim();
+async function send(retryText) {
+  const text = retryText || input.value.trim();
   if (!text || busy) return;
   busy = true; sendBtn.disabled = true;
   input.value = ""; input.style.height = "auto";
@@ -305,6 +398,13 @@ async function send() {
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
+      if (body.lane && body.lane.providers) {
+        bubble.classList.remove("dots");
+        history.pop();               // that turn never happened
+        renderOffer(el, body.lane, text);
+        busy = false; sendBtn.disabled = false; input.focus();
+        return;
+      }
       throw new Error((body.error && body.error.message) || `HTTP ${res.status}`);
     }
 
@@ -352,7 +452,10 @@ async function send() {
   }
 }
 
-sendBtn.addEventListener("click", send);
+// Wrapped, not passed directly: a click handler receives the event as its
+// first argument, and send() now takes a retry string there. Passing send
+// itself made the button send "[object PointerEvent]".
+sendBtn.addEventListener("click", () => send());
 input.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });

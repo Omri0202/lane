@@ -510,6 +510,55 @@ never quietly netted off the savings it is measuring.
 
 ---
 
+## When your models cannot do it
+
+The loop this is really built around.
+
+You give LANE keys for the models you want to use. You type. When a request
+needs something none of your models can do, LANE does not fail — it names the
+model that can, tells you what it costs, and takes the key right there:
+
+```
+  None of your models can do this.
+  It needs a model that makes images. These can:
+
+  OpenAI          GPT Image 1 · $0.040/image · DALL-E 3 · $0.040/image
+                  [ paste your OpenAI key ]  [ Add key and retry ]   get one ↗
+
+  Google Gemini   Imagen 4 · $0.040/image
+                  [ paste your Google Gemini key ]  [ Add key and retry ]
+```
+
+Paste the key and **the message you already typed goes through** — no retyping,
+no documentation, no leaving the conversation. Next time it just works, because
+the key is stored.
+
+It never offers a provider you already have, and when adding a key would not
+help either it says so plainly instead of sending you shopping.
+
+### The same thing on somebody else's site
+
+In the browser panel the answer is different, because on claude.ai you are
+spending a subscription rather than a key. There LANE names the **site** that
+can do it:
+
+```
+  MAKE AN IMAGE                    priced per image
+  ─────────────────────────────────────────────────
+  CLAUDE CAN'T DO THIS
+  ChatGPT   GPT Image 1                      $0.040
+  Gemini    Imagen 4                         $0.040
+  ─────────────────────────────────────────────────
+  No model here draws pictures - it can only read
+  them. ChatGPT does this with GPT Image 1.
+```
+
+Same detection, two answers, because the useful next step is different in each
+place. It covers every capability, not only images — a site whose models cannot
+search the web is told so before the answer comes back from a stale memory.
+
+---
+
 ## Teams, budgets and attribution
 
 The change that makes LANE something a company can sign for rather than a tool
