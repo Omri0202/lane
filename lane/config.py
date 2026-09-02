@@ -71,7 +71,15 @@ _lock = threading.Lock()
 _cache: dict | None = None
 
 
-def _read() -> dict:
+def _read_file() -> dict:
+    """Defaults plus whatever is actually saved on disk. No environment.
+
+    Kept separate from `_read` because writing must never persist an
+    environment override. `set()` used to read the merged view and write the
+    whole thing back, so running `lane config <anything>` while LANE_PORT
+    happened to be exported baked that port into the file permanently — and the
+    symptom appeared later, as a server binding a port nobody asked for.
+    """
     cfg = dict(DEFAULTS)
     try:
         if CONFIG_FILE.is_file():
@@ -80,6 +88,12 @@ def _read() -> dict:
                 cfg.update({k: v for k, v in data.items() if k in DEFAULTS})
     except Exception:
         pass  # a corrupt config must not stop the proxy from serving
+    return cfg
+
+
+def _read() -> dict:
+    """What LANE should actually use: the file, with the environment on top."""
+    cfg = _read_file()
     env_host, env_port = os.environ.get("LANE_HOST"), os.environ.get("LANE_PORT")
     if env_host:
         cfg["host"] = env_host
@@ -105,11 +119,13 @@ def set(key: str, value) -> None:
         raise KeyError(f"unknown setting {key!r}; known: {', '.join(DEFAULTS)}")
     global _cache
     with _lock:
-        cfg = _read()
+        # _read_file, never _read: an environment variable is a temporary
+        # override for one run, not a preference anybody chose to save.
+        cfg = _read_file()
         cfg[key] = value
         HOME.mkdir(parents=True, exist_ok=True)
         CONFIG_FILE.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-        _cache = cfg
+        _cache = None       # the effective view still includes the environment
 
 
 def reload() -> None:
