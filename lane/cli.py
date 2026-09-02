@@ -931,8 +931,8 @@ def cmd_serve(args) -> int:
         names = ", ".join(t["id"] for t in teams.all_teams()[:4])
         print(f"  {c('team keys required', _Y)} - "
               f"{len(teams.all_teams())} team(s): {names}")
-        print("  " + c("requests without  "
-                       "will get 401.", _DIM))
+        print("  " + c("requests without an Authorization: Bearer "
+                       "lane-sk-... header will get 401.", _DIM))
         print("  " + c("remove every team to go back to open mode.", _DIM))
     if not n:
         print(f"  {c('no keys yet — run `lane keys set anthropic`', _Y)}")
