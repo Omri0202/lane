@@ -145,7 +145,12 @@ html css react node ruby php swift kotlin scala perl haskell elixir clojure
 lua dart matlab fortran cobol assembly regex json yaml xml
 """.split())
 
-_LANG_ALT = "|".join(sorted(_HUMAN_LANGS, key=len, reverse=True))
+#: Longest first, so "portuguese" is tried before any prefix of it could win,
+#: then alphabetically. The second key is not cosmetic: sorting a set by length
+#: alone leaves equal-length words in set-iteration order, which differs
+#: between processes, so the compiled pattern - and anything generated from it
+#: - was different on every run.
+_LANG_ALT = "|".join(sorted(_HUMAN_LANGS, key=lambda w: (-len(w), w)))
 
 #: A translation cue. Deliberately loose, because it is only ever consulted
 #: AFTER a human language has been found and a programming language ruled out —

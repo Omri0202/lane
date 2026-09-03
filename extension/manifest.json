@@ -1,12 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "L.A.N.E. — model advisor",
+  "name": "L.A.N.E. \u2014 model advisor",
   "version": "0.1.0",
-  "description": "Reads what you are typing and tells you which model to pick, before you send it.",
-  "permissions": ["storage"],
-  "host_permissions": [
-    "http://127.0.0.1:8080/*",
-    "http://localhost:8080/*"
+  "description": "Reads what you are typing and tells you which model to pick, before you send it. Works entirely offline.",
+  "permissions": [
+    "storage"
   ],
   "content_scripts": [
     {
@@ -16,9 +14,16 @@
         "https://chat.openai.com/*",
         "https://gemini.google.com/*"
       ],
-      "js": ["advisor.js"],
+      "js": [
+        "core/lane-core.js",
+        "advisor.js"
+      ],
       "run_at": "document_idle"
     }
   ],
-  "icons": {}
+  "icons": {},
+  "optional_host_permissions": [
+    "http://127.0.0.1:8080/*",
+    "http://localhost:8080/*"
+  ]
 }

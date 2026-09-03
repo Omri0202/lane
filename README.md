@@ -332,22 +332,38 @@ chore.
 
 ### Installing it
 
-The advisor talks to your local LANE, so start that first:
+**No Python. No server. No terminal.**
+
+In Chrome or Edge, open `chrome://extensions`, turn on **Developer mode**,
+click **Load unpacked**, and select the `extension` folder. Open claude.ai and
+type. That is the whole install.
+
+The classifier, the model catalog and the pricing all ship inside the
+extension — about 50KB, generated from the Python so the two can never
+disagree. Everything runs in the page: nothing is sent anywhere, nothing is
+intercepted, and your message reaches Claude exactly as it always did.
+
+Verified with the server deliberately killed: the panel still classified,
+priced, and switched the model.
+
+A local `lane serve`, if you happen to run one, adds two things and is
+required for neither — the running savings total, and the model selection from
+`/setup`. When it is not there the counter simply hides.
+
+### Keeping the two brains identical
+
+`extension/core/lane-core.js` is **generated**, never hand-edited:
 
 ```bash
-lane serve
+python tools/build_core.py
 ```
 
-Then load the extension. In Chrome or Edge, go to `chrome://extensions`, turn
-on **Developer mode**, click **Load unpacked**, and select the `extension`
-folder inside this repository. Open claude.ai and start typing.
-
-Nothing is intercepted and nothing is sent anywhere: your message goes to
-Claude exactly as it always did. LANE only ever sees the text you are typing,
-on `127.0.0.1`, to classify it.
-
-If you have moved LANE off port 8080, set the endpoint in the extension's
-storage — or change the one line at the top of `extension/advisor.js`.
+Two copies of a classifier drift, and advice that differs depending on which
+half of the product you asked is worse than advice that is merely wrong. So the
+corpus, the regexes, the lane table and the catalog are all read out of the
+Python at build time. `tests/test_core_parity.py` fails if the file is stale,
+and `/dev/parity` runs every prompt through both brains in a browser — 317 of
+317 matching, at 0.73ms each.
 
 ### Working on the panel
 

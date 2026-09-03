@@ -1194,6 +1194,52 @@ async def chat_page():
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
+@app.get("/dev/core.js")
+async def dev_core():
+    """The generated browser brain, served for the parity page."""
+    path = config.PKG.parent / "extension" / "core" / "lane-core.js"
+    if not path.is_file():
+        return Response("// not built - run python tools/build_core.py",
+                        status_code=404, media_type="application/javascript")
+    return Response(path.read_text(encoding="utf-8"),
+                    media_type="application/javascript",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.get("/dev/parity-data")
+async def dev_parity_data():
+    """Every held-out prompt with the answer the PYTHON gives for it.
+
+    The point of generating the JavaScript rather than writing it is that the
+    two cannot drift. This is how that is checked: the same inputs, the Python's
+    verdicts, and a page that runs the JavaScript over them and reports every
+    disagreement.
+    """
+    from .corpus import HELDOUT, TRAIN
+    cases = []
+    for text, _gold in list(HELDOUT) + list(TRAIN):
+        v = classify.classify([{"role": "user", "content": text}])
+        cases.append({"text": text, "lane": v["lane"], "tier": v["tier"]})
+    return {"cases": cases}
+
+
+@app.get("/dev/parity", response_class=HTMLResponse)
+async def dev_parity():
+    """Served from a file rather than built as a string.
+
+    The previous version embedded the page in Python, and the escapes went
+    through two rounds of parsing on the way out: a 
+ intended for a
+    JavaScript string arrived as a real newline inside a double-quoted one,
+    which is a syntax error. HTML with script in it belongs in a .html file.
+    """
+    path = config.PKG / "web" / "parity.html"
+    if not path.is_file():
+        return HTMLResponse("parity page missing", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/dev/advisor.js")
 async def advisor_script():
     """The extension's content script, served for the local harness below."""
@@ -1290,7 +1336,7 @@ btn.addEventListener("click", () => {{
   }});
 }});
 </script>
-<script src="/dev/advisor.js"></script>""")
+<script src="/dev/core.js"></script><script src="/dev/advisor.js"></script>""")
 
 
 @app.get("/lane/catalog")

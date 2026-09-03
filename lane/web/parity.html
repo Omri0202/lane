@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>LANE core parity</title>
+<style>
+ body { font: 14px/1.6 ui-monospace, "Cascadia Mono", monospace; margin: 0;
+        padding: 26px; background: #0e1013; color: #e8eaed; }
+ h1 { font-size: 15px; margin: 0 0 4px; }
+ .sub { opacity: .55; font-size: 12.5px; margin-bottom: 18px; }
+ .ok { color: #4ec98a; } .bad { color: #f4778c; } .dim { opacity: .55; }
+ pre { white-space: pre-wrap; }
+</style>
+
+<h1>lane-core.js vs the Python classifier</h1>
+<div class="sub">
+  Same prompts, both brains. The JavaScript is generated from the Python, so
+  any disagreement here means the generator lost something.
+</div>
+<pre id="out">running…</pre>
+
+<script src="/dev/core.js"></script>
+<script>
+(async () => {
+  const out = document.getElementById("out");
+  const NL = "\n";
+  try {
+    const { cases } = await (await fetch("/dev/parity-data")).json();
+    const laneBad = [];
+    let tierBad = 0;
+
+    const t0 = performance.now();
+    for (const c of cases) {
+      const js = LaneCore.classify(c.text);
+      if (js.lane !== c.lane) {
+        laneBad.push("  " + c.text + NL +
+                     "      python=" + c.lane + "   js=" + js.lane);
+      } else if (js.tier !== c.tier) {
+        tierBad++;
+      }
+    }
+    const ms = performance.now() - t0;
+    const per = (ms / cases.length).toFixed(3);
+
+    const parts = [];
+    parts.push(cases.length + " prompts classified in " + ms.toFixed(0) +
+               "ms  (" + per + "ms each)");
+    parts.push("");
+    parts.push(laneBad.length
+      ? '<span class="bad">' + laneBad.length + " LANE MISMATCHES</span>" + NL +
+        NL + laneBad.join(NL)
+      : '<span class="ok">every lane matches</span>');
+    parts.push(tierBad
+      ? '<span class="bad">' + tierBad + " tier mismatches</span>"
+      : '<span class="dim">tiers match too</span>');
+
+    out.innerHTML = parts.join(NL);
+    window.__parity = {
+      total: cases.length,
+      mismatches: laneBad.length,
+      tierMismatches: tierBad,
+      msPerCase: Number(per),
+      examples: laneBad.slice(0, 12),
+    };
+  } catch (e) {
+    out.innerHTML = '<span class="bad">' + (e && e.message || e) + "</span>";
+    window.__parity = { error: String(e && e.message || e) };
+  }
+})();
+</script>

@@ -526,7 +526,10 @@
      which model you actually picked, and a tool that counts its own advice as
      though it were always taken is flattering itself with the very number it
      is selling on. */
+  let serverPresent = false;
+
   async function refreshScore() {
+    if (!serverPresent) { scoreEl.style.display = "none"; return; }
     try {
       const s = await (await fetch(BASE + "/lane/advice-stats")).json();
       if (!s.messages) { scoreEl.style.display = "none"; return; }
@@ -553,7 +556,7 @@
            el.isContentEditable;
   }
 
-  let timer = null, lastText = "", offline = false;
+  let timer = null, lastText = "";
 
   function onType(e) {
     if (dismissed || !isComposer(e.target)) return;
@@ -572,25 +575,46 @@
     timer = setTimeout(() => advise(text), DEBOUNCE_MS);
   }
 
+  /* The advice is worked out HERE, in the page, with no server involved.
+   *
+   * This is the difference between a tool people use and a tool people would
+   * have used. Asking somebody to clone a repository, install Python and keep a
+   * terminal open before they see their first suggestion loses almost all of
+   * them at step one, and nothing downstream of that matters if nobody gets
+   * past it.
+   *
+   * A local LANE, when one happens to be running, still adds the running
+   * savings total and the model selection from the setup page. Neither is
+   * required, and neither failing is allowed to stop the advice appearing. */
   async function advise(text) {
+    let a;
     try {
-      const res = await fetch(BASE + "/lane/advise", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ text, site: SITE, variation }),
-      });
-      if (!res.ok) throw new Error(res.status);
-      offline = false;
-      const a = await res.json();
-      last = a;
-      if (a.unavailable_here) renderElsewhere(a);
-      else renderAdvice(a);
-      refreshScore();
-    } catch {
-      // A LANE that is not running is a normal state, not an error worth
-      // shouting about. The panel must never be why a page misbehaves.
+      a = LaneCore.advise(text, SITE, variation, allowedModels);
+    } catch (e) {
       last = null;
-      if (!offline) { offline = true; renderOffline(); }
+      return;                        // never take the host page down with us
+    }
+    last = a;
+    if (a.unavailable_here) renderElsewhere(a);
+    else renderAdvice(a);
+    refreshScore();
+  }
+
+  /* Everything below is the optional half: a local LANE deepens the panel but
+   * is never needed for it to work. */
+  let allowedModels = null;
+
+  async function loadLocalPreferences() {
+    try {
+      const r = await fetch(BASE + "/lane/setup-state", { cache: "no-store" });
+      if (!r.ok) return;
+      const state = await r.json();
+      if (state.explicit_selection) {
+        allowedModels = state.models.filter((m) => m.enabled).map((m) => m.id);
+      }
+      serverPresent = true;
+    } catch {
+      serverPresent = false;         // the normal case, and not a problem
     }
   }
 
@@ -601,7 +625,7 @@
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || e.shiftKey || !isComposer(e.target)) return;
     const a = last;
-    if (a && !a.unavailable_here && a.recommend && a.top) {
+    if (serverPresent && a && !a.unavailable_here && a.recommend && a.top) {
       fetch(BASE + "/lane/advice-log", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -614,5 +638,7 @@
     setTimeout(() => { hide(); lastText = ""; last = null; }, 60);
   }, true);
 
-  refreshScore();
+  // Ask the local LANE about itself once, in the background. Whether it
+  // answers changes only how much the panel can show, never whether it works.
+  loadLocalPreferences().then(refreshScore);
 })();
