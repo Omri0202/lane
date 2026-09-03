@@ -102,7 +102,6 @@ decides within the fitting group, so "fits" never means "worse".
 | Write an article | Sonnet 5 | Fable 5 — *the strongest writing voice you have* |
 | Debug a query | Sonnet 5 | Fable 5 — *thinks before answering* |
 | Draw a picture | *Claude cannot. ChatGPT, ~$0.04* | *same* |
-| Draw a picture | *Claude can't. ChatGPT, $0.04* | *same* |
 
 ---
 
