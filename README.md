@@ -245,6 +245,36 @@ arrives after you press send is a report.
 
 The SAVE / BEST toggle lives in its header, and the choice is remembered.
 
+### One click to take the suggestion
+
+Naming a model and leaving you to go and find it is where advice gets ignored.
+The card has a button:
+
+```
+  USE ON CLAUDE
+  Claude Sonnet 5                          $0.012
+  saves $0.048 - 5x cheaper than Fable 5
+
+  [        Use Claude Sonnet 5        ]
+```
+
+Click it and the page switches. It finds the model picker by BEHAVIOUR rather
+than by selector - a small clickable thing whose visible text is the name of a
+model - because these are React apps whose class names change weekly and
+`.model-selector` is a bet on somebody else's refactor.
+
+When it cannot do it, it says so and copies the name instead:
+
+| | |
+|---|---|
+| already on that model | *already on Claude Sonnet 5* - nothing is clicked |
+| model not in the dropdown | *Claude Fable 5 is not in this page's list* |
+| no picker on the page | *no model picker found on this page* |
+
+In every failure the page is left exactly as it was found, dropdown closed. A
+button that silently does nothing is worse than no button, because you believe
+you switched.
+
 ```
 ┌────────────────────────────────────┐
 │ L.A.N.E.                         × │

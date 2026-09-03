@@ -151,6 +151,15 @@
   .same { margin-top:4px; font-size:11.5px; color:var(--dim); }
   .fit  { margin-top:4px; font-size:11.5px; color:var(--dim); }
 
+  .use { margin-top:9px; width:100%; border:0; border-radius:8px;
+         background:var(--accent); color:var(--accent-ink); font:inherit;
+         font-size:12.5px; font-weight:650; padding:7px 10px; cursor:pointer; }
+  .use:hover { filter:brightness(1.07); }
+  .use:disabled { opacity:.55; cursor:default; }
+  .useout { margin-top:5px; font-size:11px; color:var(--dim); }
+  .useout.ok { color:var(--good); }
+  .useout.bad { color:var(--alert); }
+
   table { width:100%; margin-top:9px; border-collapse:collapse;
           font-size:11px; color:var(--dim); }
   td { padding:2px 0; }
@@ -246,6 +255,160 @@
   const show = () => card.classList.add("show");
   const hide = () => card.classList.remove("show");
 
+
+  /* ── taking the suggestion ────────────────────────────────────────────────
+   *
+   * The panel spent its whole life so far naming a model and then leaving the
+   * person to go and find it. That is the hole the product leaks out of:
+   * advice you have to act on by hand is advice most people scroll past. This
+   * closes it — one click and the page is on the model that was suggested.
+   *
+   * Finding somebody else's dropdown is the hard part, and it is done by
+   * BEHAVIOUR rather than by selector. These pages are React apps whose class
+   * names change weekly, so the search looks for what a model picker
+   * unavoidably is: a small clickable thing whose visible text is the name of
+   * a model. That survives a redesign; `.model-selector-button` does not.
+   *
+   * When it cannot find one it says so and copies the name instead, which is
+   * still better than nothing and is honest about having failed. Silently
+   * doing nothing would be the worst outcome — the person would believe they
+   * had switched.
+   */
+
+  // Words that only appear in a model name. Used to recognise a picker, so it
+  // must stay short: something matching ordinary page text would turn any
+  // button into a candidate.
+  const MODEL_WORDS = /\b(opus|sonnet|haiku|gpt-?\s?\d|gemini|claude|o\d\s?mini|flash|pro)\b/i;
+
+  const norm = (t) => String(t || "").toLowerCase()
+    .replace(/[^a-z0-9.]+/g, " ").replace(/\s+/g, " ").trim();
+
+  /* Does this element's text name the model we want?
+   * Compared on the distinctive part: the site may show "Sonnet 5" where the
+   * catalog says "Claude Sonnet 5", and the shared word "claude" must not be
+   * what makes them match. */
+  function namesModel(text, target) {
+    const a = norm(text), b = norm(target);
+    if (!a || !b) return false;
+    if (a === b || a.includes(b) || b.includes(a)) return true;
+    const key = b.split(" ").filter((w) => !["claude", "gpt", "gemini"].includes(w));
+    return key.length > 0 && key.every((w) => a.includes(w));
+  }
+
+  function findPicker() {
+    const nodes = document.querySelectorAll(
+      'button, [role="combobox"], [role="button"], [aria-haspopup]');
+    const found = [];
+    for (const el of nodes) {
+      const text = (el.innerText || el.textContent || "").trim();
+      if (!text || text.length > 40) continue;      // a paragraph is not a picker
+      if (!MODEL_WORDS.test(text)) continue;
+      const box = el.getBoundingClientRect();
+      if (!box.width || !box.height) continue;      // hidden
+      found.push({ el, text, area: box.width * box.height });
+    }
+    // The smallest match is the most likely: a picker is a compact control,
+    // while a big container that happens to contain the model name is not.
+    found.sort((a, b) => a.area - b.area);
+    return found.length ? found[0] : null;
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /* Bounded by the CLOCK, not by a count of sleeps.
+   *
+   * A background or hidden tab throttles setTimeout to roughly once a second,
+   * so a 12-try loop with a 70ms sleep is 840ms in a focused tab and twelve
+   * seconds in an unfocused one - and the person watching sees a button stuck
+   * on "switching..." with no way to tell whether it is working. A deadline
+   * gives the same short wait either way. */
+  async function findOption(target, budgetMs = 1500) {
+    const deadline = Date.now() + budgetMs;
+    for (;;) {
+      const opts = document.querySelectorAll(
+        '[role="option"], [role="menuitem"], [role="menuitemradio"], li');
+      for (const o of opts) {
+        const text = (o.innerText || o.textContent || "").trim();
+        if (text && text.length < 60 && namesModel(text, target)) return o;
+      }
+      if (Date.now() >= deadline) return null;
+      await sleep(70);                              // menus render late
+    }
+  }
+
+  /* Put the page back exactly as it was found.
+   *
+   * Toggling the trigger a second time is not enough: plenty of these menus
+   * close on Escape or on an outside click and treat a second trigger click as
+   * a re-open. Leaving somebody's model dropdown hanging open over their
+   * conversation is the most visible way this feature can misbehave, so all
+   * three are tried and the result is checked. */
+  async function closeMenu(picker) {
+    const open = () => document.querySelector(
+      '[role="listbox"], [role="menu"], [aria-expanded="true"]');
+    if (!open()) return true;
+
+    const esc = (el) => el.dispatchEvent(new KeyboardEvent("keydown", {
+      key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true }));
+
+    // Every attempt is fired first, and only then is anything awaited.
+    //
+    // The earlier version slept between attempts, which in a throttled tab
+    // meant a full second each and the deadline expiring before the last one
+    // was ever tried - so the fallback that actually works never ran. These
+    // are cheap synchronous events; there is no reason to pace them.
+    const attempts = [
+      () => esc(picker.el),
+      () => esc(document.activeElement || document.body),
+      () => esc(document.body),
+      () => picker.el.click(),
+      () => document.body.dispatchEvent(
+        new MouseEvent("click", { bubbles: true })),
+    ];
+    for (const attempt of attempts) {
+      try { attempt(); } catch (e) { /* try the next one */ }
+      if (!open()) return true;
+    }
+
+    // Give the page one frame to react to whichever of those it honoured.
+    await sleep(120);
+    return !open();
+  }
+
+  async function applyModel(target) {
+    const picker = findPicker();
+    if (!picker) return { ok: false, why: "no model picker found on this page" };
+
+    if (namesModel(picker.text, target))
+      return { ok: true, already: true };
+
+    picker.el.click();
+    const option = await findOption(target);
+    if (!option) {
+      await closeMenu(picker);
+      return { ok: false, why: target + " is not in this page's list" };
+    }
+    option.click();
+    await sleep(220);
+    await closeMenu(picker);
+
+    const after = findPicker();
+    if (after && namesModel(after.text, target)) return { ok: true };
+    return { ok: false, why: "clicked it, but the page did not switch" };
+  }
+
+  /* Best-effort, and on a leash. navigator.clipboard.writeText never settles
+     when the document is not focused - it does not reject, it simply hangs -
+     so awaiting it plainly left the button reading "switching..." forever, on
+     the one path where something had already gone wrong. */
+  function copyName(name) {
+    return Promise.race([
+      navigator.clipboard.writeText(name).then(function () { return true; })
+        .catch(function () { return false; }),
+      new Promise(function (r) { setTimeout(function () { r(false); }, 600); }),
+    ]);
+  }
+
   function header(a) {
     const tokens = a.kind === "image"
       ? "priced per image"
@@ -308,6 +471,8 @@
             <span class="price">${money(rec.cost)}</span>
           </div>
           ${headline}
+          <button class="use" id="use">Use ${esc(rec.display)}</button>
+          <div class="useout" id="useout"></div>
         </div>
         ${rows ? `<table>${rows}</table>` : ""}
         <div class="why">${esc(a.explain)}</div>
@@ -317,6 +482,31 @@
            which ones you actually have</a> and this gets sharper.
          </div>` : ""}
       </div>`;
+
+    const use = root.getElementById("use");
+    if (use) use.addEventListener("click", async () => {
+      const out = root.getElementById("useout");
+      use.disabled = true;
+      out.className = "useout";
+      out.textContent = "switching\u2026";
+      const r = await applyModel(rec.display);
+      use.disabled = false;
+      if (r.ok) {
+        out.className = "useout ok";
+        out.textContent = r.already
+          ? "already on " + rec.display
+          : "switched to " + rec.display;
+      } else {
+        // The reason goes up FIRST. Everything after it is a nicety, and
+        // a nicety must never be what stands between somebody and being
+        // told that their click did nothing.
+        out.className = "useout bad";
+        out.textContent = r.why;
+        if (await copyName(rec.display)) {
+          out.textContent = r.why + " \u2014 name copied instead";
+        }
+      }
+    });
     show();
   }
 

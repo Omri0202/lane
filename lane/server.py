@@ -1211,29 +1211,85 @@ async def advisor_script():
 
 @app.get("/dev/advisor", response_class=HTMLResponse)
 async def advisor_harness(site: str = "claude"):
-    """A fake composer for developing the advisor panel.
+    """A fake composer AND a fake model picker, for developing the panel.
 
-    The panel's whole job is to appear over somebody else's website while they
-    type. Reviewing a change to it should not require side-loading an
-    unpacked extension into claude.ai and typing a sentence by hand.
+    The picker matters as much as the composer now. One-click apply has to find
+    a dropdown it did not write, inside a page it does not control, and the
+    only way to know the discovery heuristics work is to point them at
+    something shaped like the real thing. Markup here deliberately mirrors what
+    those apps actually render: a button with aria-haspopup, a listbox of
+    role=option, and not one useful class name anywhere.
     """
+    models = {
+        "claude": ["Claude Opus 4.1", "Claude Sonnet 5", "Claude Haiku 4.5"],
+        "chatgpt": ["GPT-5", "GPT-5 mini", "GPT-4.1 mini"],
+        "gemini": ["Gemini 2.5 Pro", "Gemini 2.5 Flash"],
+    }.get(site, ["Claude Sonnet 5"])
+    options = "".join(
+        f'<div role="option" class="x9f2" data-i="{i}">{m}</div>'
+        for i, m in enumerate(models))
     return HTMLResponse(f"""<!doctype html><meta charset=utf-8>
-<title>LANE advisor harness — {site}</title>
+<title>LANE advisor harness \u2014 {site}</title>
 <style>
  body {{ font: 15px/1.6 ui-sans-serif, system-ui, sans-serif; margin:0;
         min-height:100vh; background:#f2f3f5; color:#14171a;
         display:flex; flex-direction:column; }}
  @media (prefers-color-scheme: dark) {{
    body {{ background:#0e1013; color:#e8eaed; }}
-   textarea {{ background:#171a1f; color:#e8eaed; border-color:#2b313a; }} }}
+   textarea, .p8k {{ background:#171a1f; color:#e8eaed; border-color:#2b313a; }}
+   .m3q {{ background:#171a1f; border-color:#2b313a; }} }}
  header {{ padding:14px 20px; font-size:13px; opacity:.6; }}
- main {{ flex:1; display:flex; align-items:flex-end;
-         justify-content:center; padding:0 20px 60px; }}
+ main {{ flex:1; display:flex; flex-direction:column; align-items:center;
+         justify-content:flex-end; padding:0 20px 60px; gap:10px; }}
+ .bar {{ width:min(680px,100%); display:flex; }}
+ .p8k {{ font:inherit; font-size:13px; padding:7px 12px; border-radius:9px;
+         border:1px solid #d8dbe0; background:#fff; cursor:pointer; }}
+ .m3q {{ position:absolute; margin-top:6px; background:#fff;
+         border:1px solid #d8dbe0; border-radius:10px; padding:5px;
+         box-shadow:0 8px 24px rgba(0,0,0,.14); z-index:50; }}
+ .m3q [role=option] {{ padding:7px 14px; border-radius:7px; cursor:pointer;
+                       font-size:13.5px; white-space:nowrap; }}
+ .m3q [role=option]:hover {{ background:#eceef1; }}
  textarea {{ width:min(680px,100%); height:110px; font:inherit; padding:14px;
              border-radius:12px; border:1px solid #d8dbe0; background:#fff; }}
 </style>
-<header>Pretending to be <b>{site}</b> — type below and watch the panel.</header>
-<main><textarea placeholder="Ask something…" autofocus></textarea></main>
+<header>Pretending to be <b>{site}</b> \u2014 type below, then use the panel.</header>
+<main>
+  <div class="bar">
+    <button class="p8k" aria-haspopup="listbox" aria-expanded="false"
+            id="picker">{models[0]}</button>
+  </div>
+  <textarea placeholder="Ask something\u2026" autofocus></textarea>
+</main>
+<script>
+// A dropdown that behaves like the real ones: nothing in the DOM until it is
+// opened, options identified only by role, and the trigger's label changes to
+// whatever was chosen.
+const btn = document.getElementById("picker");
+let menu = null;
+btn.addEventListener("click", () => {{
+  if (menu) {{ menu.remove(); menu = null; btn.setAttribute("aria-expanded","false"); return; }}
+  menu = document.createElement("div");
+  menu.className = "m3q";
+  menu.setAttribute("role", "listbox");
+  menu.innerHTML = `{options}`;
+  btn.parentElement.appendChild(menu);
+  btn.setAttribute("aria-expanded", "true");
+  document.addEventListener("keydown", function esc(e) {{
+    if (e.key === "Escape" && menu) {{
+      menu.remove(); menu = null;
+      btn.setAttribute("aria-expanded", "false");
+    }}
+  }});
+  menu.addEventListener("click", (e) => {{
+    const opt = e.target.closest('[role=option]');
+    if (!opt) return;
+    btn.textContent = opt.textContent;
+    menu.remove(); menu = null;
+    btn.setAttribute("aria-expanded", "false");
+  }});
+}});
+</script>
 <script src="/dev/advisor.js"></script>""")
 
 
