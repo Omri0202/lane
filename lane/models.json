@@ -14,7 +14,8 @@
     "groq/compound is deliberately ABSENT. G.I.L. measured it returning no content in streaming mode across three attempts; a model that silently answers nothing is worse than a missing one. Re-add it only once its tool-step response shape is handled.",
     "There is deliberately NO Anthropic image model. No Claude model generates images, and inventing one so the advisor always has an answer would make it confidently wrong on the exact request where being wrong is most obvious. When a site cannot do the job, the advisor says which one can.",
     "strengths is what separates the performance variation from a rate card. Tier says how good a model is; strengths say what it is good AT, so 'best for this request' can mean the fast model for a greeting and the thinking one for a proof.",
-    "`plan` is \"free\" when the model can be picked on its provider's consumer site, or called on its API, without paying extra. It is NOT in_price: one answers \"which is cheaper\", the other \"can I click that at all\". It defaults to paid and is the most perishable field here - free tiers change on the providers' schedule, so correct it freely."
+    "`plan` is \"free\" when the model can be picked on its provider's consumer site, or called on its API, without paying extra. It is NOT in_price: one answers \"which is cheaper\", the other \"can I click that at all\". It defaults to paid and is the most perishable field here - free tiers change on the providers' schedule, so correct it freely.",
+    "`picker` is whether the provider's own consumer app lists this model in its menu. GPT-5 nano is a real model at a real price that nobody will ever find on chatgpt.com, so advising it there is advice that cannot be taken. Site advice filters on this; the proxy does not."
   ],
   "pricing_verified": {
     "anthropic": "2026-06-24",
@@ -50,7 +51,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "claude-opus-5",
@@ -77,7 +79,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "claude-opus-4-8",
@@ -103,7 +106,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "claude-sonnet-5",
@@ -130,7 +134,8 @@
         "vision",
         "web"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": true
     },
     {
       "id": "claude-sonnet-4-6",
@@ -157,7 +162,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "claude-haiku-4-5",
@@ -182,7 +188,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "gpt-5",
@@ -208,7 +215,8 @@
         "vision",
         "web"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": true
     },
     {
       "id": "gpt-5-mini",
@@ -234,7 +242,8 @@
         "vision",
         "web"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": true
     },
     {
       "id": "gpt-5-nano",
@@ -259,7 +268,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": false
     },
     {
       "id": "gpt-4.1-mini",
@@ -285,7 +295,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": false
     },
     {
       "id": "gemini-2.5-pro",
@@ -311,7 +322,8 @@
         "vision",
         "web"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "gemini-2.5-flash",
@@ -337,7 +349,8 @@
         "vision",
         "web"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": true
     },
     {
       "id": "gemini-2.5-flash-lite",
@@ -362,7 +375,8 @@
         "vision",
         "web"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": false
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -387,7 +401,8 @@
         "depth",
         "tools"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": false
     },
     {
       "id": "openai/gpt-oss-20b",
@@ -412,7 +427,8 @@
         "speed",
         "tools"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": false
     },
     {
       "id": "qwen/qwen3.6-27b",
@@ -436,7 +452,8 @@
         "tools",
         "vision"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": false
     },
     {
       "id": "qwen/qwen3.8-27b",
@@ -460,7 +477,8 @@
         "speed",
         "tools"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": false
     },
     {
       "id": "groq/compound-mini",
@@ -484,7 +502,8 @@
         "tools",
         "web"
       ],
-      "plan": "free"
+      "plan": "free",
+      "picker": false
     },
     {
       "id": "gpt-image-1",
@@ -507,7 +526,8 @@
       "strengths": [
         "image"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "dall-e-3",
@@ -530,7 +550,8 @@
       "strengths": [
         "image"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     },
     {
       "id": "imagen-4",
@@ -553,7 +574,8 @@
       "strengths": [
         "image"
       ],
-      "plan": "paid"
+      "plan": "paid",
+      "picker": true
     }
   ]
 }

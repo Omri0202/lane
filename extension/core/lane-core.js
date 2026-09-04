@@ -1216,6 +1216,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 40,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "code",
     "depth",
@@ -1242,6 +1243,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 50,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "code",
     "depth",
@@ -1267,6 +1269,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 60,
    "plan": "free",
+   "picker": true,
    "strengths": [
     "code",
     "depth",
@@ -1292,6 +1295,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 50,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "code",
     "depth",
@@ -1317,6 +1321,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 65,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "depth",
     "long_context",
@@ -1342,6 +1347,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.04,
    "speed": 1,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "image"
    ]
@@ -1363,6 +1369,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.04,
    "speed": 1,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "image"
    ]
@@ -1384,6 +1391,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 70,
    "plan": "free",
+   "picker": true,
    "strengths": [
     "code",
     "prose",
@@ -1409,6 +1417,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 70,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "code",
     "prose",
@@ -1434,6 +1443,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 477,
    "plan": "free",
+   "picker": false,
    "strengths": [
     "code",
     "depth",
@@ -1457,6 +1467,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 100,
    "plan": "free",
+   "picker": true,
    "strengths": [
     "code",
     "speed",
@@ -1482,6 +1493,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.04,
    "speed": 1,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "image"
    ]
@@ -1503,6 +1515,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 140,
    "plan": "free",
+   "picker": true,
    "strengths": [
     "long_context",
     "speed",
@@ -1528,6 +1541,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 801,
    "plan": "free",
+   "picker": false,
    "strengths": [
     "code",
     "speed",
@@ -1551,6 +1565,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 110,
    "plan": "paid",
+   "picker": false,
    "strengths": [
     "prose",
     "speed",
@@ -1576,6 +1591,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 120,
    "plan": "paid",
+   "picker": true,
    "strengths": [
     "speed",
     "tools",
@@ -1600,6 +1616,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 440,
    "plan": "free",
+   "picker": false,
    "strengths": [
     "tools",
     "web"
@@ -1622,6 +1639,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 470,
    "plan": "free",
+   "picker": false,
    "strengths": [
     "speed",
     "tools"
@@ -1644,6 +1662,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 472,
    "plan": "free",
+   "picker": false,
    "strengths": [
     "tools",
     "vision"
@@ -1666,6 +1685,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 180,
    "plan": "paid",
+   "picker": false,
    "strengths": [
     "speed",
     "tools",
@@ -1690,6 +1710,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "per_image": 0.0,
    "speed": 200,
    "plan": "free",
+   "picker": false,
    "strengths": [
     "speed",
     "tools",
@@ -2362,7 +2383,15 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
     const outTok = s.expected_output;
 
     const provider = SITE_PROVIDER[site];
+    /* On a consumer site, "available" means the site's own menu lists it.
+     *
+     * GPT-5 nano and GPT-4.1 mini are real models at real prices that nobody
+     * will ever find on chatgpt.com - they are API-only. Recommending one
+     * there is advice that cannot be taken: the panel says use this, the
+     * person goes looking, and it is not there. The proxy is not filtered,
+     * because it calls the API where these models genuinely do exist. */
     let here = MODELS.filter((m) => !provider || m.provider === provider);
+    if (provider) here = here.filter((m) => m.picker !== false);
     if (allowedIds && allowedIds.length) {
       // The restriction applies only to the KIND it was expressed over.
       //

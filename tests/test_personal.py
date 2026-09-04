@@ -295,7 +295,10 @@ def test_the_panel_names_the_paid_model_it_is_holding_back():
     src = read("advisor.js")
     assert "allowedIgnoringCost" in src, "it never works out what it is hiding"
     assert "withPaid" in src
-    assert "would fit this better" in src
+    # The wording follows the reason: a paid model is sometimes stronger and
+    # sometimes just cheaper, and calling a nano model a better fit for a
+    # recall question is nonsense somebody will notice.
+    assert "fit this better" in src and "cost less" in src
     assert 'id="showPaid"' in src, "no way to change your mind"
 
 
@@ -321,3 +324,68 @@ def test_the_page_is_clicked_the_way_a_mouse_clicks_it():
     # And the real sequence must be what applyModel uses.
     assert "realClick(picker.el)" in src
     assert "picker.el.click();" not in src
+
+
+# ── a model that is offered has to be switchable ─────────────────────────────
+
+def test_a_site_is_not_offered_a_model_its_menu_has_never_had():
+    """GPT-5 nano and GPT-4.1 mini are API-only.
+
+    They are real models at real prices that nobody will ever find on
+    chatgpt.com, so recommending one there is advice that cannot be taken:
+    the panel says use this, the person goes looking, and it is not there.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from lane import catalog
+    api_only = {m.id for m in catalog.all_models() if not m.picker}
+    assert "gpt-5-nano" in api_only
+    assert "gpt-4.1-mini" in api_only
+    assert "gemini-2.5-flash-lite" in api_only
+    # An image model IS offered by the site - you ask for a picture and get
+    # one - it simply is not in the model menu. Those are different questions.
+    for m in catalog.all_models():
+        if m.kind == "image":
+            assert m.picker, m.id
+
+
+def test_a_model_is_not_mistaken_for_its_smaller_sibling():
+    """"gpt 5" is a substring of "gpt 5 mini".
+
+    Every containment test says one is the other, so a picker sitting on GPT-5
+    reported it was already on GPT-5 mini and the panel congratulated itself
+    without switching anything. The size qualifiers have to match as a set.
+    """
+    src = read("advisor.js")
+    assert "QUALIFIERS" in src
+    for word in ("mini", "nano", "lite", "pro", "flash", "thinking"):
+        assert f'"{word}"' in src, word
+    # And the containment shortcut that caused it must be gone.
+    assert "a.includes(b) || b.includes(a)" not in src
+
+
+def test_the_button_asks_the_page_before_promising_a_switch():
+    """A page with no model menu cannot switch models.
+
+    Finding that out after the click means the panel had already promised.
+    """
+    src = read("advisor.js")
+    use = src[src.index('id="use"') - 400:src.index('id="use"')]
+    assert "findPicker()" in use, "the switch is offered without checking"
+    assert 'id="copy"' in src, "nothing honest is offered in its place"
+
+
+def test_a_switch_that_fails_produces_a_suggestion_that_works():
+    """The catalog is a good guess about a site's menu and only a guess.
+
+    Menus differ by plan, by region, by whatever is rolling out this week. A
+    failure is evidence, so the model is struck off for this page and the
+    advice recomputed - the second line is something that works rather than an
+    apology.
+    """
+    src = read("advisor.js")
+    assert "missingHere" in src
+    assert "withoutMissing" in src
+    # Both failure modes, because from where somebody is sitting they are one
+    # thing: the panel offered a model and the model did not happen.
+    assert "not in this page|did not switch" in src

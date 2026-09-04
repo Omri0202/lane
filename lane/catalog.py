@@ -58,6 +58,16 @@ class Model:
     #: but on the API it genuinely varies — and a model that cannot look
     #: answers a "what happened today" question from memory, confidently.
     web: bool = True
+    #: Whether this model appears in its provider's consumer model MENU.
+    #:
+    #: Distinct from existing: GPT-5 nano and GPT-4.1 mini are real models with
+    #: real prices that no amount of clicking will find on chatgpt.com, because
+    #: they are API-only. Recommending one there is advice that cannot be
+    #: taken - the panel says "use this", the person looks for it, and it is
+    #: not there. Consumer-site advice is filtered on this; the proxy, which
+    #: calls the API directly, is not.
+    picker: bool = True
+
     #: "free" when this model can be picked on its provider's consumer site,
     #: or called on its API, without paying anything extra - and "paid"
     #: otherwise. This is NOT in_price: per-token cost answers "which is

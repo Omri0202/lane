@@ -234,27 +234,84 @@ ${LaneUI.css}
   // Words that only appear in a model name. Used to recognise a picker, so it
   // must stay short: something matching ordinary page text would turn any
   // button into a candidate.
-  const MODEL_WORDS = /\b(opus|sonnet|haiku|gpt-?\s?\d|gemini|claude|o\d\s?mini|flash|pro)\b/i;
+  /* Models this page has proved it does not offer.
+   *
+   * The catalog is a good guess about what a site's menu contains and it is
+   * only a guess - menus differ by plan, by region, by whatever is being
+   * rolled out this week. Rather than be wrong twice, a failed switch is
+   * remembered for the rest of the page's life and the advice is recomputed
+   * without it. The second suggestion is then one that works.
+   *
+   * Not persisted. A menu that lacked a model this morning may list it after
+   * an upgrade, and a preference that outlives its evidence is a bug that
+   * takes a reinstall to clear. */
+  const missingHere = new Set();
+
+  /* What a model picker's label looks like. Deliberately loose: ChatGPT's own
+   * switcher has read plain "ChatGPT", and its newer one reads "Auto",
+   * "Instant" or "Thinking" with no model name in it at all. */
+  const MODEL_WORDS =
+    /\b(opus|sonnet|haiku|chatgpt|gpt-?\s?\d|gemini|claude|o\d\s?mini|flash|pro|auto|instant|thinking)\b/i;
 
   const norm = (t) => String(t || "").toLowerCase()
     .replace(/[^a-z0-9.]+/g, " ").replace(/\s+/g, " ").trim();
 
+  /* Words that make a model a DIFFERENT model rather than the same one under
+   * a longer name. This is the whole difficulty: "GPT-5" and "GPT-5 mini" are
+   * two models, and every containment test in the world says one is the
+   * other. So the qualifiers have to match exactly, both ways. */
+  const QUALIFIERS = ["mini", "nano", "lite", "micro", "small", "pro", "max",
+                      "ultra", "turbo", "flash", "thinking", "instant",
+                      "preview", "air", "plus", "high", "low"];
+
+  const VENDOR = ["claude", "gpt", "chatgpt", "gemini", "openai", "google",
+                  "anthropic", "the", "model"];
+
+  const qualifiersOf = (words) =>
+    QUALIFIERS.filter((q) => words.includes(q)).join(",");
+
   /* Does this element's text name the model we want?
-   * Compared on the distinctive part: the site may show "Sonnet 5" where the
-   * catalog says "Claude Sonnet 5", and the shared word "claude" must not be
-   * what makes them match. */
+   *
+   * Compared on the distinctive part, because the site may show "Sonnet 5"
+   * where the catalog says "Claude Sonnet 5" and the shared word "claude"
+   * must not be what makes them match.
+   *
+   * But NOT by containment, which was the bug: "gpt 5" is a substring of
+   * "gpt 5 mini", so a picker sitting on GPT-5 reported that it was already
+   * on GPT-5 mini and the panel congratulated itself without switching
+   * anything. Same for Gemini Pro against Gemini Pro Preview, and for every
+   * other model that ships next to a smaller version of itself.
+   *
+   * So: the size qualifiers must be the same set on both sides, and then the
+   * target's remaining distinctive words must all appear. */
   function namesModel(text, target) {
     const a = norm(text), b = norm(target);
     if (!a || !b) return false;
-    if (a === b || a.includes(b) || b.includes(a)) return true;
-    const key = b.split(" ").filter((w) => !["claude", "gpt", "gemini"].includes(w));
-    return key.length > 0 && key.every((w) => a.includes(w));
+    if (a === b) return true;
+
+    const aw = a.split(" "), bw = b.split(" ");
+    if (qualifiersOf(aw) !== qualifiersOf(bw)) return false;
+
+    const key = bw.filter((w) => !VENDOR.includes(w));
+    return key.length > 0 && key.every((w) => aw.includes(w));
   }
 
   function findPicker() {
     const nodes = document.querySelectorAll(
       'button, [role="combobox"], [role="button"], [aria-haspopup]');
     const found = [];
+
+    /* Attributes first. A control that calls itself the model selector is a
+     * surer thing than one whose visible text happens to contain a model
+     * name, and it keeps working when the label is "Auto". */
+    for (const el of document.querySelectorAll(
+        '[data-testid*="model" i], [aria-label*="model" i], [id*="model" i]')) {
+      const box = el.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
+      const text = (el.innerText || el.textContent || "").trim();
+      if (text.length > 60) continue;
+      found.push({ el, text, area: box.width * box.height });
+    }
     for (const el of nodes) {
       const text = (el.innerText || el.textContent || "").trim();
       if (!text || text.length > 40) continue;      // a paragraph is not a picker
@@ -526,10 +583,18 @@ ${LaneUI.css}
             <span class="l-num" style="font-size:13px;font-weight:600">${money(rec.cost)}</span>
           </div>
           ${headline}
+          ${findPicker() ? `
           <button class="l-btn l-btn--primary l-btn--block" id="use"
                   style="margin-top:10px">
             Use ${esc(rec.display)} ${LaneUI.icons.arrow}
+          </button>` : `
+          <button class="l-btn l-btn--block" id="copy" style="margin-top:10px">
+            Copy \u201c${esc(rec.display)}\u201d
           </button>
+          <div class="l-micro" style="margin-top:5px">
+            This page has no model menu to switch \u2014 sign in, or open a
+            chat, and the button becomes a switch.
+          </div>`}
           <div class="useout" id="useout"></div>
         </div>
         ${rows ? `<table class="alts">${rows}</table>` : ""}
@@ -538,8 +603,9 @@ ${LaneUI.css}
         ${a.withPaid ? `<div class="paidnote">
            <span class="l-label l-warn">Costs extra</span>
            <div class="l-sub" style="margin-top:3px">
-             <b>${esc(a.withPaid.display)}</b> would fit this better, but it is
-             not on the free plan${a.withPaid.cost ? " \u2014 about "
+             <b>${esc(a.withPaid.display)}</b> would ${
+               a.withPaid.cost < (rec.cost || 0) ? "cost less" : "fit this better"
+             }, but it is not on the free plan${a.withPaid.cost ? " \u2014 about "
                + money(a.withPaid.cost) + " on the API" : ""}.
            </div>
            <button class="l-btn--link" id="showPaid" style="margin-top:4px">
@@ -557,12 +623,18 @@ ${LaneUI.css}
          </div>` : ""}
       </div>`;
 
+    const copyBtn = root.getElementById("copy");
+    if (copyBtn) copyBtn.addEventListener("click", async () => {
+      copyBtn.textContent = (await copyName(rec.display))
+        ? "copied" : "could not copy \u2014 " + rec.display;
+    });
+
     const showPaid = root.getElementById("showPaid");
     if (showPaid) showPaid.addEventListener("click", () => {
       if (!profile) return;
       profile.paid = true;
       LaneProfile.patch({ paid: true });
-      allowedModels = LaneProfile.allowed(profile);
+      allowedModels = withoutMissing(LaneProfile.allowed(profile));
       if (lastText) advise(lastText);
     });
 
@@ -612,6 +684,23 @@ ${LaneUI.css}
         // The reason goes up FIRST. Everything after it is a nicety, and
         // a nicety must never be what stands between somebody and being
         // told that their click did nothing.
+        /* Whatever the detail, this model could not be selected here.
+         *
+         * There are two ways that comes back - the menu did not contain it,
+         * or it was clicked and the label never changed - and from where
+         * somebody is sitting those are one thing: the panel offered a model
+         * and the model did not happen. Both strike it off for this page and
+         * recompute, so the next line is a suggestion that works rather than
+         * an apology. Only a page with no menu at all is different, and that
+         * is caught before the button is drawn. */
+        if (/not in this page|did not switch/.test(r.why || "")) {
+          missingHere.add(rec.id);
+          out.className = "useout";
+          out.textContent = rec.display + " is not in this page's menu \u2014 "
+                          + "finding you another";
+          allowedModels = withoutMissing(LaneProfile.allowed(profile));
+          if (lastText) { advise(lastText); return; }
+        }
         out.className = "useout bad";
         out.textContent = r.why;
         if (await copyName(rec.display)) {
@@ -774,13 +863,20 @@ ${LaneUI.css}
    * if there is one, only fills in what the browser cannot know on its own -
    * the running savings total, and a model selection made on its setup page by
    * somebody who prefers that screen to the interview. */
+  /* Whatever this person allows, minus what this page has proved it lacks. */
+  function withoutMissing(ids) {
+    if (!missingHere.size) return ids;
+    const all = (ids && ids.length ? ids : LaneCore.MODELS.map((m) => m.id));
+    return all.filter((id) => !missingHere.has(id));
+  }
+
   let allowedModels = null;
   let profile = null;
 
   async function loadProfile() {
     try {
       profile = await LaneProfile.load();
-      allowedModels = LaneProfile.allowed(profile);
+      allowedModels = withoutMissing(LaneProfile.allowed(profile));
       if (profile.variation) setVariation(
         profile.variation === "best" ? "best" : "save");
     } catch (e) { profile = null; }

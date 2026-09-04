@@ -143,6 +143,7 @@ def main() -> None:
             "vision": m.vision, "tools": m.tools, "web": m.web,
             "kind": m.kind, "image_out": m.image_out,
             "per_image": m.per_image, "speed": m.speed, "plan": m.plan,
+            "picker": m.picker,
             "strengths": list(m.strengths),
         })
 

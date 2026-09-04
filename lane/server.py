@@ -855,6 +855,12 @@ async def advise(request: Request):
     # has said otherwise this is still the whole catalog, so the advisor is
     # useful out of the box and gets sharper the moment they tell it.
     here = catalog.declared(provider)
+    # A consumer site can only offer what its own menu lists. GPT-5 nano is a
+    # real model at a real price that nobody will ever find on chatgpt.com,
+    # and advising it there is advice that cannot be taken. The proxy is not
+    # filtered this way - it calls the API, where these models do exist.
+    if provider:
+        here = [m for m in here if getattr(m, "picker", True)]
 
     def cost_of(m):
         return m.cost_for(in_tokens, out_tokens)

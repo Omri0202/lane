@@ -374,7 +374,15 @@ const LaneCore = (() => {
     const outTok = s.expected_output;
 
     const provider = SITE_PROVIDER[site];
+    /* On a consumer site, "available" means the site's own menu lists it.
+     *
+     * GPT-5 nano and GPT-4.1 mini are real models at real prices that nobody
+     * will ever find on chatgpt.com - they are API-only. Recommending one
+     * there is advice that cannot be taken: the panel says use this, the
+     * person goes looking, and it is not there. The proxy is not filtered,
+     * because it calls the API where these models genuinely do exist. */
     let here = MODELS.filter((m) => !provider || m.provider === provider);
+    if (provider) here = here.filter((m) => m.picker !== false);
     if (allowedIds && allowedIds.length) {
       // The restriction applies only to the KIND it was expressed over.
       //
