@@ -23,12 +23,12 @@
     },
     {
       "matches": [
-        "https://www.google.com/search*",
-        "https://www.google.co.uk/search*",
-        "https://www.bing.com/search*",
+        "https://www.google.com/*",
+        "https://www.google.co.uk/*",
+        "https://www.bing.com/*",
         "https://duckduckgo.com/*",
-        "https://search.brave.com/search*",
-        "https://www.ecosia.org/search*"
+        "https://search.brave.com/*",
+        "https://www.ecosia.org/*"
       ],
       "js": [
         "core/lane-core.js",

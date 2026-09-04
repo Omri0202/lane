@@ -370,29 +370,44 @@ Starred models also appear under every panel suggestion as one-click switches �
 the advice is a recommendation, not a ruling, and having to go around the panel
 to disagree with it is how a panel gets dismissed.
 
-### On a search page
+### While you type into a search box
 
-Search for something a model would answer better, and a small card appears in
-the corner:
+The choice between a search engine and a model is made in the second before
+Enter is pressed, so that is where the card lives — it appears as you type, on
+the search page, before you send anything.
 
 ```
   REASONING
   A model would answer this better than a list of links.
-  GPT-5                                    $0.012
-  [     Ask ChatGPT instead     ]
+
+  CHEAPEST  Claude Sonnet 5                    $0.012
+            Claude
+  BEST      Claude Opus 4.8                    $0.030
+            Claude
+
   Never on searches
 ```
 
-Your query goes with you — Claude and ChatGPT both accept it in the URL, and
-for Gemini it is copied to the clipboard, because it has no such parameter and
-silently dropping what you typed would be worse than saying so.
+**Two picks, not one.** "Use this" is a ruling; the cheapest that will do the
+job beside the one that fits it best is a choice, and you know which of those
+you want better than any classifier does. They are searched across every site
+you use, so the answer can be *cheapest is on ChatGPT, best is on Claude* —
+which no single-site view can tell you.
 
-**When it stays silent is the design.** A card on every search is adware. It
+Your query goes with you. Claude and ChatGPT accept it in the URL; Gemini has
+no such parameter, so the row says **copied — paste it in** rather than dropping
+what you typed.
+
+Until you have set your preferences, the card carries one extra line —
+*Tell LANE which models you actually have →* — and it disappears the moment you
+do.
+
+**When it stays silent is the design.** A card on every keystroke is adware. It
 says nothing for navigation (`facebook`, `npm install react`, a bare domain),
-nothing for short factual lookups Google answers in the box at the top, and
+nothing for short factual lookups the engine answers in a box at the top, and
 nothing at all when the query needs **current information** — a model would
-answer that from a stale memory while the real answer sits on the page behind
-the card. Twelve representative queries are asserted in
+answer that from a stale memory while the real answer is on the page behind the
+card. Twelve representative queries are asserted in
 `tests/test_search_offer.py`: eight silent, four offered.
 
 ### Installing it

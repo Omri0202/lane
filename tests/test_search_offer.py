@@ -102,12 +102,21 @@ def read(name: str) -> str:
     return (EXT / name).read_text(encoding="utf-8")
 
 
-def test_the_query_comes_from_the_url_not_the_page():
-    """Reading ?q= needs no access to the results and survives every redesign
-    of them. Scraping the DOM would be a standing bet on Google's markup."""
+def test_the_query_is_read_from_typing_and_the_url_never_scraped():
+    """Two sources, neither of them the results markup.
+
+    While somebody types, the query comes from the input event itself; on a
+    page they arrived at already, from ?q=. Scraping the DOM for it would be a
+    standing bet on Google's markup, and the card would break silently the week
+    they change it.
+    """
     src = read("search.js")
     assert "URLSearchParams(location.search)" in src
-    assert "querySelector" not in src.split("function render")[0]
+    assert 'document.addEventListener("input"' in src
+    # The only DOM queries are inside the card's own shadow root.
+    for line in src.splitlines():
+        if "querySelector" in line:
+            assert "root." in line, f"queries the host page: {line.strip()}"
 
 
 def test_it_can_be_turned_off_permanently():
@@ -127,9 +136,30 @@ def test_it_is_a_separate_content_script_with_narrow_matches():
     panel = [cs for cs in scripts if "advisor.js" in cs["js"]]
     assert len(search) == 1 and len(panel) == 1
     assert search[0] is not panel[0]
+
+    # Homepages are included on purpose: the card appears WHILE the query is
+    # typed, and on Google that typing starts on the front page. What matters
+    # is that the two scripts never overlap.
+    engines = ("//www.google.", "//www.bing.com", "//duckduckgo.com",
+               "//search.brave.com", "//www.ecosia.org")
     for m in search[0]["matches"]:
-        assert "search" in m or "duckduckgo" in m, m
-    assert not any("claude.ai" in m for m in search[0]["matches"])
+        assert any(e in m for e in engines), m
+
+    # The two must not overlap. Note that gemini.google.com is a CHAT site the
+    # panel owns — matching engines on the substring "google." would have
+    # claimed it, which is the bug this pins down.
+    chat = ("claude.ai", "chatgpt.com", "chat.openai.com", "gemini.google.com")
+    assert not any(c in m for c in chat for m in search[0]["matches"])
+    assert not any(e in m for e in engines for m in panel[0]["matches"])
+
+
+def test_gemini_is_a_chat_site_not_a_search_engine():
+    """gemini.google.com contains "google." and is not Google. The host check
+    is anchored so the search card can never appear over the chat panel."""
+    src = read("search.js")
+    assert "ENGINE_HOSTS" in src
+    assert 'includes("google."' not in src
+    assert "^(www\\.)?google" in src
 
 
 def test_it_does_not_claim_a_prefill_it_cannot_do():
@@ -138,7 +168,9 @@ def test_it_does_not_claim_a_prefill_it_cannot_do():
     src = read("search.js")
     assert "PREFILLS" in src
     assert "gemini: false" in src
-    assert "copied" in src
+    # The row itself has to say so. Arriving at an empty box wondering where
+    # your question went is worse than being told to paste it.
+    assert "copied - paste it in" in src
 
 
 def test_it_never_sends_the_query_anywhere():
