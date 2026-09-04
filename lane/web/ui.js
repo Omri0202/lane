@@ -314,8 +314,10 @@ const LaneUI = (() => {
 .l-row:focus-visible { outline: 2px solid var(--l-accent); outline-offset: 2px; }
 /* A chevron that leans in on hover. A row that opens something should say so
    before it is clicked, not after. */
-/* The provider's mark, at the right-hand end where the eye lands after the
-   price. In its own colour, which is the part doing the identifying. */
+/* The provider's mark, leading the row: whose service this is is the first
+   thing you want when scanning four of them, and a mark at the far end only
+   answers it after you have already read the name. In its own colour, which
+   is the part doing the identifying. */
 .l-row__brand { flex: none; display: flex; align-items: center;
                 width: 17px; height: 17px; }
 .l-row__brand svg { width: 100%; height: 100%; display: block; }
@@ -451,13 +453,13 @@ const LaneUI = (() => {
     openai: {
       name: "ChatGPT",
       on: "#12100e", dark: "#e9e7e2",
-      /* A rounded hexagon. The three-ellipse rosette is closer to the
-         real mark and at 17px it collapses into a cog - tried it, it
-         reads as a settings icon, which is the one thing it must not.
-         The hexagonal silhouette is the part that survives being
-         small, and next to a four-point spark and a radial burst it
-         gives three shapes nobody has to squint at. */
-      svg: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 1.7l5.4 3.15v6.3L8 14.3l-5.4-3.15V4.85z"/></svg>',
+      /* A solid six-lobed blossom - the silhouette of OpenAI's knot, which
+         is the part that survives being 17px across. Two earlier attempts
+         did not: a thin three-ellipse rosette collapsed into something that
+         read as a settings cog, and a bare hexagon was legible but said
+         nothing about whose it was. Rendered all five at 17 and 56px and
+         looked at them before choosing. */
+      svg: '<svg viewBox="0 0 16 16" fill="currentColor"><g><ellipse cx="8" cy="8" rx="2.5" ry="6.2"/><ellipse cx="8" cy="8" rx="2.5" ry="6.2" transform="rotate(60 8 8)"/><ellipse cx="8" cy="8" rx="2.5" ry="6.2" transform="rotate(120 8 8)"/></g></svg>',
     },
     google: {
       name: "Gemini",

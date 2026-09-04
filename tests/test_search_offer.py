@@ -386,3 +386,23 @@ def test_the_row_carries_the_mark_of_the_service_it_opens():
     # Every site the card can offer must map to a provider that has one.
     for site in ("claude", "chatgpt", "gemini"):
         assert site in src.split("const PROVIDER =")[1][:160], site
+
+
+def test_the_mark_leads_the_row_and_every_row_starts_at_the_same_place():
+    """Whose service this is is the first thing you want when scanning four.
+
+    A mark at the far right only answers it after you have read the name. And
+    the badge had to come out of its own 54px column to get there: with it,
+    rows WITH a badge indented their mark and rows without did not, so the
+    marks stepped sideways halfway down the card - and the marks are the thing
+    being scanned.
+    """
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    row = src[src.index("const row = (pick)"):]
+    row = row[:row.index("
+    };")]
+    assert row.index("l-row__brand") < row.index("l-row__name"), (
+        "the mark comes after the name")
+    # No label column left to knock them out of line.
+    assert "l-row__tag" not in row
+    assert 'class="badge badge--' in row

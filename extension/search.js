@@ -311,16 +311,16 @@
       <button class="l-row ${pick.badge ? "l-row--" + KIND[pick.badge] : ""} pick"
               data-site="${esc(pick.site)}"
               title="Continue this on ${esc(SITE_NAME[pick.site])}">
-        ${pick.badge
-          ? `<span class="l-row__tag l-label">${LABEL[pick.badge]}</span>` : ""}
+        <span class="l-row__brand" style="color:${brand ? (dark ? brand.dark : brand.on) : "currentColor"}"
+              aria-hidden="true">${brand ? brand.svg : ""}</span>
         <span class="l-row__main">
-          <span class="l-row__name">${esc(pick.rec.display)}</span>
+          <span class="l-row__name">${esc(pick.rec.display)}${pick.badge
+            ? ` <em class="badge badge--${KIND[pick.badge]}">${LABEL[pick.badge]}</em>`
+            : ""}</span>
           <span class="l-row__note">${esc(
             [SITE_NAME[pick.site]].concat(bits).join(" \u00b7 "))}</span>
         </span>
         <span class="l-row__end l-num">${money(pick.rec.cost)}</span>
-        <span class="l-row__brand" style="color:${brand ? (dark ? brand.dark : brand.on) : "currentColor"}"
-              aria-hidden="true">${brand ? brand.svg : ""}</span>
         <span class="l-row__go">${LaneUI.icons.chevron}</span>
       </button>`;
     };
@@ -356,6 +356,20 @@ ${LaneUI.css}
 .picks .l-row:not([class*="l-row--"]):hover { background: var(--l-sunk);
                                               border-color: var(--l-line-2); }
 .picks .l-row:not([class*="l-row--"]) .l-row__name { font-weight: 560; }
+
+/* The badge sits beside the name rather than in a column of its own.
+ *
+ * A 54px label column meant the rows WITH a badge indented their mark and the
+ * rows without did not, so the marks stepped sideways halfway down the card -
+ * and the marks are the thing you scan. Inline, every row starts at the same
+ * x, and the badge is next to the model it describes instead of across a
+ * gutter from it. */
+.badge { font-style: normal; font-size: 9px; font-weight: 700;
+         letter-spacing: .08em; text-transform: uppercase;
+         padding: 2px 5px; border-radius: 5px; vertical-align: 1.5px;
+         margin-left: 5px; white-space: nowrap; }
+.badge--save { background: var(--l-save-soft); color: var(--l-save); }
+.badge--best { background: var(--l-best-soft); color: var(--l-best); }
 
 .setup { margin-top: var(--l-3); display: flex; gap: 9px; align-items: flex-start;
          padding: 9px 10px; border-radius: var(--l-r-md);
