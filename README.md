@@ -370,6 +370,31 @@ Starred models also appear under every panel suggestion as one-click switches �
 the advice is a recommendation, not a ruling, and having to go around the panel
 to disagree with it is how a panel gets dismissed.
 
+### On a search page
+
+Search for something a model would answer better, and a small card appears in
+the corner:
+
+```
+  REASONING
+  A model would answer this better than a list of links.
+  GPT-5                                    $0.012
+  [     Ask ChatGPT instead     ]
+  Never on searches
+```
+
+Your query goes with you — Claude and ChatGPT both accept it in the URL, and
+for Gemini it is copied to the clipboard, because it has no such parameter and
+silently dropping what you typed would be worse than saying so.
+
+**When it stays silent is the design.** A card on every search is adware. It
+says nothing for navigation (`facebook`, `npm install react`, a bare domain),
+nothing for short factual lookups Google answers in the box at the top, and
+nothing at all when the query needs **current information** — a model would
+answer that from a stale memory while the real answer sits on the page behind
+the card. Twelve representative queries are asserted in
+`tests/test_search_offer.py`: eight silent, four offered.
+
 ### Installing it
 
 **No Python. No server. No terminal.**
