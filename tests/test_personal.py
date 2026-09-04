@@ -224,3 +224,29 @@ def test_a_chat_model_selection_does_not_hide_image_models():
     core = (EXT / "core" / "lane-core.js").read_text(encoding="utf-8")
     assert "The restriction applies only to the KIND" in core
     assert "kinds.has(m.kind" in core
+
+
+def test_a_panel_that_renders_can_also_be_clicked():
+    """The host is a fixed box with pointer-events:none. The card undoes it.
+
+    Both content scripts mount into a fixed-position host sized to the card's
+    column, and set pointer-events:none on it so it does not swallow clicks
+    meant for the page behind it. Something then has to hand clicks back, or
+    the result is a panel that renders perfectly, animates, updates as you
+    type, and ignores every button on it - which is exactly what shipped when
+    a redesign dropped one line from one stylesheet.
+
+    The rule lives in ui.js now so no surface can own it badly; this checks
+    the pairing rather than the line.
+    """
+    ui = (EXT / "ui.js").read_text(encoding="utf-8")
+    card = ui[ui.index(".l-card {"):]
+    assert "pointer-events: auto" in card[:card.index("}")], (
+        ".l-card no longer takes clicks")
+
+    for name in ("advisor.js", "search.js"):
+        src = (EXT / name).read_text(encoding="utf-8")
+        if "pointer-events:none" not in src.replace(" ", ""):
+            continue
+        assert "l-card" in src, (
+            f"{name} blocks pointer events but mounts no card that restores them")

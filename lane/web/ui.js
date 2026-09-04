@@ -163,6 +163,12 @@ const LaneUI = (() => {
 
 /* ── surfaces ─────────────────────────────────────────────────────────── */
 .l-card {
+  /* Paired with the host element, which is a fixed-position box the size of
+     the card's column and sets pointer-events:none so it does not swallow
+     clicks meant for the page behind it. The card has to hand them back, and
+     it lives here rather than in each surface because forgetting it produces
+     a panel that renders perfectly and ignores every button. */
+  pointer-events: auto;
   background: var(--l-bg); color: var(--l-ink);
   border-radius: var(--l-r-lg);
   box-shadow: var(--l-shadow);

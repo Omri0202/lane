@@ -270,7 +270,7 @@ ${LaneUI.css}
 /* Local to this card. The shell, the rows, the pill and the buttons are the
    shared ones, so the search card and the panel read as the same object seen
    in two places rather than two things that happen to look similar. */
-.card { pointer-events: auto; animation: l-rise .18s cubic-bezier(.2,.7,.3,1) both; }
+.card { animation: l-rise .18s cubic-bezier(.2,.7,.3,1) both; }
 
 .l-head { gap: 7px; }
 .logo { display: flex; color: var(--l-accent); }
