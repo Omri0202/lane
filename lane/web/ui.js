@@ -319,7 +319,7 @@ const LaneUI = (() => {
    answers it after you have already read the name. In its own colour, which
    is the part doing the identifying. */
 .l-row__brand { flex: none; display: flex; align-items: center;
-                width: 17px; height: 17px; }
+                width: 18px; height: 18px; }
 .l-row__brand svg { width: 100%; height: 100%; display: block; }
 
 .l-row__go { flex: none; color: var(--l-faint); display: flex;
@@ -453,13 +453,15 @@ const LaneUI = (() => {
     openai: {
       name: "ChatGPT",
       on: "#12100e", dark: "#e9e7e2",
-      /* A solid six-lobed blossom - the silhouette of OpenAI's knot, which
-         is the part that survives being 17px across. Two earlier attempts
-         did not: a thin three-ellipse rosette collapsed into something that
-         read as a settings cog, and a bare hexagon was legible but said
-         nothing about whose it was. Rendered all five at 17 and 56px and
-         looked at them before choosing. */
-      svg: '<svg viewBox="0 0 16 16" fill="currentColor"><g><ellipse cx="8" cy="8" rx="2.5" ry="6.2"/><ellipse cx="8" cy="8" rx="2.5" ry="6.2" transform="rotate(60 8 8)"/><ellipse cx="8" cy="8" rx="2.5" ry="6.2" transform="rotate(120 8 8)"/></g></svg>',
+      /* The knot, built the way it is actually built: three identical
+         ribbons at sixty degrees to each other. Two lobes apiece gives the
+         six in the outer silhouette, and where they overlap you get the
+         hexagon in the middle.
+
+         Two earlier attempts were simplifications and both were worse - a
+         thin rosette collapsed into something that read as a settings cog,
+         and a solid blossom had the silhouette but none of the structure. */
+      svg: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="4.5" y="1.2999999999999998" width="7.0" height="13.4" rx="3.5"/><rect x="4.5" y="1.2999999999999998" width="7.0" height="13.4" rx="3.5" transform="rotate(60 8 8)"/><rect x="4.5" y="1.2999999999999998" width="7.0" height="13.4" rx="3.5" transform="rotate(120 8 8)"/></svg>',
     },
     google: {
       name: "Gemini",
