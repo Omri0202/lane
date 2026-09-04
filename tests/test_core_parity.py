@@ -159,3 +159,47 @@ def test_the_panel_does_not_require_a_server():
 
     advisor = (ROOT / "extension" / "advisor.js").read_text(encoding="utf-8")
     assert "LaneCore.advise(" in advisor, "the panel must classify locally"
+
+
+def test_design_system_is_mirrored_not_duplicated():
+    """extension/ui.js is a copy of lane/web/ui.js, made by the build.
+
+    Two files that must look identical will not stay identical if a person has
+    to remember to change both. The panel and the setup page drifting a shade
+    apart is exactly the "assembled rather than designed" problem the design
+    system was written to end, so it is worth a test rather than a convention.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    canonical = (root / "lane" / "web" / "ui.js").read_text(encoding="utf-8")
+    mirrored = (root / "extension" / "ui.js").read_text(encoding="utf-8")
+    assert mirrored == canonical, (
+        "extension/ui.js is stale - run tools/build_core.py")
+
+
+def test_no_surface_defines_its_own_palette():
+    """Colours are declared once, in ui.js, and nowhere else.
+
+    A grep, because the failure mode is not a broken page - it is six pages
+    that each still work and no longer match.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    surfaces = [
+        root / "extension" / "advisor.js",
+        root / "extension" / "search.js",
+        root / "extension" / "popup.html",
+        root / "extension" / "onboarding.html",
+        root / "lane" / "web" / "chat.html",
+        root / "lane" / "web" / "setup.html",
+    ]
+    offenders = []
+    for path in surfaces:
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        # Old-style tokens: --accent:, --ink:, --line: and friends, which is
+        # what every surface used to carry its own version of.
+        stray = re.findall(r"--(?:accent|ink|line|panel|faint|dim|bg|good)\s*:",
+                           text)
+        if stray:
+            offenders.append(f"{path.name}: {len(stray)} local colour tokens")
+    assert not offenders, "; ".join(offenders)

@@ -34,4 +34,4 @@ Homepage = "https://github.com/Omri0202/lane"
 include = ["lane*"]
 
 [tool.setuptools.package-data]
-lane = ["models.json", "web/*.html"]
+lane = ["models.json", "web/*.html", "web/*.js"]

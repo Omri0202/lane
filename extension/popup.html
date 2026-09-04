@@ -3,103 +3,83 @@
 <head>
 <meta charset="utf-8">
 <title>L.A.N.E.</title>
+
+<!-- The design system first, so the page-local rules below can lean on its
+     tokens and override the handful of things a 360px popup needs. -->
+<script src="ui.js"></script>
+<script>LaneUI.mount();</script>
+
 <style>
 /* The launcher: what do you want to do, answered before you have opened
    anything. The panel can only help once somebody is already on a site and
    already typing; this catches the moment before that, which is when the
    choice of site and model is actually being made. */
-:root {
-  --bg:#fff; --panel:#f6f7f9; --line:#e3e6ea; --ink:#14171a;
-  --dim:#6b7480; --faint:#99a1ac; --good:#1a8a5a; --alert:#c2410c;
-  --accent:#3b6df5; --accent-ink:#fff;
+* { box-sizing: border-box; }
+body {
+  width: 360px; margin: 0;
+  background: var(--l-bg); color: var(--l-ink);
+  font: 13px/1.55 var(--l-font);
 }
-@media (prefers-color-scheme: dark) {
-  :root { --bg:#171a1f; --panel:#1e222a; --line:#2b313a; --ink:#e8eaed;
-          --dim:#9aa3ae; --faint:#6d7681; --good:#4ec98a; --alert:#fb923c;
-          --accent:#5b87ff; --accent-ink:#0b0d10; }
+
+/* The head is the shared one; it just needs to not round its corners here,
+   because a popup has no card around it to round against. */
+.l-head { border-radius: 0; }
+
+.quick { display: flex; gap: 6px; flex-wrap: wrap; margin-top: var(--l-2); }
+.quick button {
+  border: 1px solid var(--l-line); background: var(--l-bg);
+  color: var(--l-dim); border-radius: 999px; padding: 4px 11px;
+  font: inherit; font-size: 12px; cursor: pointer;
+  transition: border-color .13s ease, color .13s ease;
 }
-* { box-sizing:border-box; }
-body { width:360px; margin:0; background:var(--bg); color:var(--ink);
-       font:13.5px/1.55 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.quick button:hover { border-color: var(--l-accent); color: var(--l-ink); }
 
-.top { display:flex; align-items:center; gap:8px; padding:9px 12px;
-       background:var(--panel); border-bottom:1px solid var(--line); }
-.brand { font-size:10px; font-weight:700; letter-spacing:.12em; color:var(--faint); }
-.grow { flex:1; }
-.seg { display:flex; gap:2px; background:var(--bg); padding:2px;
-       border:1px solid var(--line); border-radius:7px; }
-.seg button { border:0; background:transparent; color:var(--dim); font:inherit;
-              font-size:10px; font-weight:700; letter-spacing:.06em;
-              padding:3px 9px; border-radius:5px; cursor:pointer; }
-.seg button[aria-pressed="true"] { background:var(--accent); color:var(--accent-ink); }
-.gear { border:0; background:transparent; color:var(--faint); cursor:pointer;
-        font-size:14px; padding:2px 4px; }
-.gear:hover { color:var(--ink); }
+textarea.l-field { min-height: 64px; resize: vertical; display: block; }
 
-.body { padding:12px; }
-textarea { width:100%; min-height:62px; resize:vertical; font:inherit;
-           padding:10px 11px; border:1px solid var(--line); border-radius:10px;
-           background:var(--bg); color:var(--ink); }
-textarea:focus { outline:2px solid var(--accent); outline-offset:-1px; }
+.answer { margin-top: var(--l-3); padding-top: var(--l-3);
+          border-top: 1px solid var(--l-line); display: none; }
+.answer.show { display: block; animation: l-rise .16s cubic-bezier(.2,.7,.3,1) both; }
 
-.quick { display:flex; gap:6px; flex-wrap:wrap; margin-top:9px; }
-.quick button { border:1px solid var(--line); background:var(--bg);
-                color:var(--dim); border-radius:999px; padding:4px 11px;
-                font:inherit; font-size:12px; cursor:pointer; }
-.quick button:hover { border-color:var(--accent); color:var(--ink); }
+.name { display: flex; align-items: baseline; gap: var(--l-2);
+        margin-top: 7px; }
+.why  { margin-top: 5px; }
+.save { color: var(--l-good); font-size: 12px; font-weight: 600; margin-top: 4px; }
 
-.answer { margin-top:12px; padding-top:12px; border-top:1px solid var(--line);
-          display:none; }
-.answer.show { display:block; }
-.lead { display:flex; align-items:center; gap:7px; }
-.tag { padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700;
-       letter-spacing:.04em; text-transform:uppercase;
-       background:#3b82f622; color:#3b6df5; }
-@media (prefers-color-scheme: dark) { .tag { color:#7ba2ff; } }
-.row { display:flex; align-items:baseline; gap:8px; margin-top:7px; }
-.name { font-size:15px; font-weight:650; flex:1; }
-.price { font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
-.why { color:var(--dim); font-size:12px; margin-top:5px; }
-.save { color:var(--good); font-size:12px; font-weight:600; margin-top:4px; }
+.go { display: flex; gap: 7px; margin-top: var(--l-3); }
+.go .l-btn { flex: 1; }
 
-.go { display:flex; gap:7px; margin-top:11px; }
-.go button { flex:1; border:0; border-radius:9px; padding:9px;
-             background:var(--accent); color:var(--accent-ink);
-             font:inherit; font-weight:650; font-size:12.5px; cursor:pointer; }
-.go button.alt { background:var(--panel); color:var(--ink);
-                 border:1px solid var(--line); font-weight:500; }
+.favs { margin-top: var(--l-3); padding-top: var(--l-3);
+        border-top: 1px solid var(--l-line); }
+.favrow { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.favrow .l-btn { padding: 5px 10px; font-size: 12px; }
 
-.favs { margin-top:11px; padding-top:11px; border-top:1px solid var(--line); }
-.favs h3 { font-size:9.5px; text-transform:uppercase; letter-spacing:.08em;
-           color:var(--faint); margin:0 0 6px; font-weight:700; }
-.favrow { display:flex; gap:6px; flex-wrap:wrap; }
-.favrow button { border:1px solid var(--line); background:var(--bg);
-                 color:var(--ink); border-radius:8px; padding:5px 10px;
-                 font:inherit; font-size:12px; cursor:pointer; }
-.favrow button:hover { border-color:var(--accent); }
+.gone { margin-top: var(--l-3); padding-top: var(--l-3);
+        border-top: 1px solid var(--l-line); }
+.gone .l { display: flex; gap: var(--l-2); margin-top: 5px; font-size: 12.5px;
+           align-items: baseline; }
+.gone .l b { font-weight: 620; }
+.gone .l span { color: var(--l-dim); flex: 1; }
 
-.alert { margin-top:11px; padding-top:11px; border-top:1px solid var(--line); }
-.alert .h { color:var(--alert); font-weight:700; font-size:11px;
-            text-transform:uppercase; letter-spacing:.04em; }
-.alert .l { display:flex; gap:6px; margin-top:5px; font-size:12.5px;
-            align-items:baseline; }
-.alert .l b { font-weight:650; }
-.alert .l span { color:var(--dim); flex:1; }
-
-.first { padding:22px 14px; text-align:center; }
-.first p { color:var(--dim); margin:8px 0 14px; font-size:13px; }
+.first { padding: var(--l-6) var(--l-4) var(--l-5); text-align: center; }
+.first p { color: var(--l-dim); margin: var(--l-2) 0 var(--l-4);
+           font-size: 12.5px; line-height: 1.55; }
+.first .mark { display: inline-flex; width: 34px; height: 34px;
+               align-items: center; justify-content: center;
+               border-radius: var(--l-r-md); background: var(--l-accent-soft);
+               color: var(--l-accent); margin-bottom: var(--l-1); }
+.first .mark svg { width: 19px; height: 19px; }
 </style>
 </head>
 <body>
 
-<div class="top">
-  <span class="brand">L.A.N.E.</span>
-  <span class="grow"></span>
-  <div class="seg" id="seg">
-    <button data-v="save" aria-pressed="true">SAVE</button>
-    <button data-v="best" aria-pressed="false">BEST</button>
+<div class="l-head">
+  <span class="l-brand">L.A.N.E.</span>
+  <span class="l-grow"></span>
+  <div class="l-seg" id="seg" role="group" aria-label="What to optimise for">
+    <button data-v="save" aria-pressed="true"  title="Cheapest model that still does the job">SAVE</button>
+    <button data-v="best" aria-pressed="false" title="Model whose strengths fit the request">BEST</button>
   </div>
-  <button class="gear" id="gear" title="Set up">⚙</button>
+  <button class="l-icon" id="gear" title="Set up" aria-label="Set up"></button>
 </div>
 
 <div id="root"></div>
@@ -114,6 +94,8 @@ const money = (n) => n <= 0 ? "free"
   : n < 0.001 ? "$" + n.toFixed(5)
   : n < 0.01 ? "$" + n.toFixed(4)
   : n < 1 ? "$" + n.toFixed(3) : "$" + n.toFixed(2);
+
+$("gear").innerHTML = LaneUI.icons.gear;
 
 const SITE_URL = { claude:"https://claude.ai/new",
                    chatgpt:"https://chatgpt.com/",
@@ -142,21 +124,37 @@ function openTab(url) {
   } catch (e) { window.open(url, "_blank"); }
 }
 
+/* The popup is an extension page, so it may use the proper API. Content
+   scripts may not - see search.js, where the same call is a message. */
 function openSetup() {
-  const url = (typeof chrome !== "undefined" && chrome.runtime)
-    ? chrome.runtime.getURL("onboarding.html") : "onboarding.html";
-  openTab(url);
+  try {
+    if (typeof chrome !== "undefined" && chrome.runtime
+        && chrome.runtime.openOptionsPage) {
+      chrome.runtime.openOptionsPage();
+      return;
+    }
+    if (typeof chrome !== "undefined" && chrome.runtime) {
+      openTab(chrome.runtime.getURL("onboarding.html"));
+      return;
+    }
+  } catch (e) { /* fall through */ }
+  openTab("onboarding.html");
 }
 
 function render() {
   if (!profile.onboarded) {
     $("root").innerHTML = `
       <div class="first">
-        <div style="font-size:15px;font-weight:650">Five quick questions.</div>
+        <div class="mark">${LaneUI.icons.spark}</div>
+        <div class="l-h2">Five quick questions</div>
         <p>Which sites you use, which models you can pick, what you mostly do.
            Then every suggestion is about you rather than about models in
            general.</p>
-        <div class="go"><button id="start">Set up</button></div>
+        <div class="go">
+          <button class="l-btn l-btn--primary" id="start">
+            Set up ${LaneUI.icons.arrow}
+          </button>
+        </div>
       </div>`;
     $("start").addEventListener("click", openSetup);
     return;
@@ -172,15 +170,16 @@ function render() {
   }
 
   $("root").innerHTML = `
-    <div class="body">
-      <textarea id="what" placeholder="What do you want to do?" autofocus></textarea>
+    <div class="l-pad">
+      <textarea class="l-field" id="what"
+                placeholder="What do you want to do?" autofocus></textarea>
       <div class="quick">${quick.map((q) =>
         `<button data-q="${esc(q)}">${esc(q)}</button>`).join("")}</div>
       <div class="answer" id="answer"></div>
       ${favs.length ? `<div class="favs">
-        <h3>Your favourites</h3>
+        <span class="l-label">Your favourites</span>
         <div class="favrow">${favs.map((m) =>
-          `<button data-open="${esc(m.provider)}">${esc(m.display)}</button>`).join("")}</div>
+          `<button class="l-btn" data-open="${esc(m.provider)}">${esc(m.display)}</button>`).join("")}</div>
       </div>` : ""}
     </div>`;
 
@@ -228,17 +227,17 @@ function answer(text) {
     // Nowhere they use can do it. Say where can.
     const any = LaneCore.advise(text, sites[0], variation, allowed);
     box.innerHTML = `
-      <div class="lead"><span class="tag">${esc(any.lane_label)}</span></div>
-      <div class="alert">
-        <div class="h">None of your sites can do this</div>
+      <span class="l-pill l-pill--${esc(any.lane)}">${esc(any.lane_label)}</span>
+      <div class="gone">
+        <div class="l-label l-alert">None of your sites can do this</div>
         ${(any.elsewhere || []).slice(0, 3).map((e) => `
           <div class="l"><b>${esc(e.site)}</b><span>${esc(e.display)}</span>
-            ${money(e.cost)}</div>`).join("")}
+            <span class="l-num" style="flex:none">${money(e.cost)}</span></div>`).join("")}
       </div>
       <div class="go">
         ${(any.elsewhere || []).slice(0, 1).map((e) =>
-          `<button data-goto="${esc(PROVIDER_SITE[e.provider] || "claude")}">
-             Open ${esc(e.site)}</button>`).join("")}
+          `<button class="l-btn l-btn--primary" data-goto="${esc(PROVIDER_SITE[e.provider] || "claude")}">
+             Open ${esc(e.site)} ${LaneUI.icons.arrow}</button>`).join("")}
       </div>`;
     box.classList.add("show");
     wireGo();
@@ -249,21 +248,21 @@ function answer(text) {
   const a = best.a;
   const rec = a.recommend;
   box.innerHTML = `
-    <div class="lead">
-      <span class="tag">${esc(a.lane_label)}</span>
-      <span class="why" style="margin:0">on ${esc(SITE_NAME[best.site])}</span>
+    <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+      <span class="l-pill l-pill--${esc(a.lane)}">${esc(a.lane_label)}</span>
+      <span class="l-micro">on ${esc(SITE_NAME[best.site])}</span>
     </div>
-    <div class="row">
-      <span class="name">${esc(rec.display)}</span>
-      <span class="price">${money(rec.cost)}</span>
+    <div class="name">
+      <span class="l-lead" style="flex:1">${esc(rec.display)}</span>
+      <span class="l-num" style="font-size:13px;font-weight:600">${money(rec.cost)}</span>
     </div>
-    ${a.is_top
-      ? `<div class="why">Nothing lighter clears the bar for this.</div>`
+    ${a.is_top ? ""
       : `<div class="save">saves ${money(a.saving)} · ${a.factor}× cheaper than ${esc((a.top||{}).display)}</div>`}
-    <div class="why">${esc(a.explain)}</div>
+    <div class="why l-sub">${esc(a.explain)}</div>
     <div class="go">
-      <button data-goto="${esc(best.site)}">Open ${esc(SITE_NAME[best.site])}</button>
-      <button class="alt" id="copy">Copy prompt</button>
+      <button class="l-btn l-btn--primary" data-goto="${esc(best.site)}">
+        Open ${esc(SITE_NAME[best.site])} ${LaneUI.icons.arrow}</button>
+      <button class="l-btn" id="copy">Copy prompt</button>
     </div>`;
   box.classList.add("show");
   wireGo();

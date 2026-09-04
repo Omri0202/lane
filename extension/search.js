@@ -108,14 +108,22 @@
     } catch (e) { /* a preference that will not stick is not an error */ }
   }
 
+  /* Ask the extension to open its own page.
+   *
+   * Opening it directly from here is what Chrome refuses: a content script
+   * lives in the web page's world, and navigating that world to a
+   * chrome-extension:// URL is blocked outright - ERR_BLOCKED_BY_CLIENT, with
+   * no way to tell it apart from an ad blocker. The alternative, listing the
+   * page in web_accessible_resources, would let any site on the internet frame
+   * it, which is a worse trade than a message. */
   function openSetup() {
     try {
       if (typeof chrome !== "undefined" && chrome.runtime
-          && chrome.runtime.getURL) {
-        window.open(chrome.runtime.getURL("onboarding.html"), "_blank");
+          && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: "lane:open-setup" });
         return;
       }
-    } catch (e) { /* fall through */ }
+    } catch (e) { /* fall through to the dev harness */ }
     window.open("/dev/ext/onboarding.html", "_blank");
   }
 
@@ -178,94 +186,63 @@
       if (note) bits.push(note);
       if (!PREFILLS[pick.site]) bits.push("copied - paste it in");
       return `
-      <button class="pick" data-site="${esc(pick.site)}">
-        <span class="lbl">${label}</span>
-        <span class="mid">
-          <span class="mdl">${esc(pick.rec.display)}</span>
-          <span class="via">${esc(bits.join(" \u00b7 "))}</span>
+      <button class="l-row pick" data-site="${esc(pick.site)}">
+        <span class="l-row__tag l-label">${label}</span>
+        <span class="l-row__main">
+          <span class="l-row__name">${esc(pick.rec.display)}</span>
+          <span class="l-row__note">${esc(bits.join(" \u00b7 "))}</span>
         </span>
-        <span class="cost">${money(pick.rec.cost)}</span>
+        <span class="l-row__end l-num">${money(pick.rec.cost)}</span>
       </button>`;
     };
 
     root.innerHTML = `
 <style>
-  :host { all: initial;
-    --bg:#fff; --panel:#f6f7f9; --line:#e3e6ea; --ink:#14171a;
-    --dim:#6b7480; --faint:#99a1ac; --good:#1a8a5a;
-    --accent:#3b6df5; --accent-ink:#fff; }
-  @media (prefers-color-scheme: dark) {
-    :host { --bg:#171a1f; --panel:#1e222a; --line:#2b313a; --ink:#e8eaed;
-            --dim:#9aa3ae; --faint:#6d7681; --good:#4ec98a;
-            --accent:#5b87ff; --accent-ink:#0b0d10; }
-  }
-  * { box-sizing:border-box; }
-  .card { pointer-events:auto;
-    font:13px/1.5 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
-    background:var(--bg); color:var(--ink);
-    border:1px solid var(--line); border-radius:13px; overflow:hidden;
-    box-shadow:0 8px 28px rgba(0,0,0,.16), 0 1px 3px rgba(0,0,0,.08);
-    animation:in .16s ease both; }
-  @keyframes in { from { opacity:0; transform:translateY(6px); } }
-  .top { display:flex; align-items:center; gap:7px; padding:7px 9px 7px 11px;
-         background:var(--panel); border-bottom:1px solid var(--line); }
-  .brand { font-size:10px; font-weight:700; letter-spacing:.11em; color:var(--faint); }
-  .grow { flex:1; }
-  .x { border:0; background:transparent; color:var(--faint); cursor:pointer;
-       font-size:15px; line-height:1; padding:2px 5px; border-radius:5px; }
-  .x:hover { color:var(--ink); background:var(--line); }
-  .body { padding:10px 11px 11px; }
-  .tag { display:inline-block; padding:2px 8px; border-radius:999px;
-         font-size:10px; font-weight:700; letter-spacing:.04em;
-         text-transform:uppercase; background:#3b82f622; color:#3b6df5; }
-  @media (prefers-color-scheme: dark) { .tag { color:#7ba2ff; } }
-  .lead { font-size:11.5px; color:var(--dim); margin-top:7px; }
+${LaneUI.css}
 
-  .pick { width:100%; display:flex; align-items:center; gap:9px;
-          margin-top:7px; padding:8px 10px; text-align:left;
-          border:1px solid var(--line); border-radius:10px;
-          background:var(--bg); color:var(--ink); font:inherit; cursor:pointer; }
-  .pick:hover { border-color:var(--accent); }
-  .lbl { font-size:9px; font-weight:700; letter-spacing:.07em;
-         text-transform:uppercase; color:var(--faint); width:52px; flex:none; }
-  .mid { flex:1; min-width:0; }
-  .mdl { display:block; font-weight:650; font-size:13px; }
-  .via { display:block; font-size:11px; color:var(--dim); }
-  .cost { font-size:12px; font-weight:600; font-variant-numeric:tabular-nums;
-          white-space:nowrap; }
-
-  .setup { margin-top:9px; padding-top:9px; border-top:1px dashed var(--line); }
-  .setup button { border:0; background:none; color:var(--accent); font:inherit;
-                  font-size:11.5px; cursor:pointer; padding:0; text-align:left; }
-  .setup .d { font-size:11px; color:var(--faint); margin-top:2px; }
-
-  .foot { margin-top:9px; }
-  .foot button { border:0; background:none; color:var(--faint); font:inherit;
-                 font-size:10.5px; cursor:pointer; text-decoration:underline; }
-  .foot button:hover { color:var(--ink); }
-  .note { font-size:10.5px; color:var(--faint); margin-top:6px; }
+/* Only what is particular to this card. The shell, the rows, the pill and the
+   buttons are the shared ones, so the search card and the panel read as the
+   same object seen in two places rather than two things that look similar. */
+:host { display: block; }
+.card { pointer-events: auto; animation: l-rise .16s cubic-bezier(.2,.7,.3,1) both; }
+.lead  { margin-top: 6px; }
+.picks { margin-top: var(--l-2); }
+.setup { margin-top: var(--l-3); padding-top: var(--l-3);
+         border-top: 1px dashed var(--l-line); }
+.foot  { margin-top: var(--l-3); }
+.foot button { color: var(--l-faint); font-size: 11px; text-decoration: underline; }
+.foot button:hover { color: var(--l-ink); }
 </style>
-<div class="card">
-  <div class="top">
-    <span class="brand">L.A.N.E.</span>
-    <span class="grow"></span>
-    <button class="x" id="close" title="Not this time">×</button>
+<div class="l-card card">
+  <div class="l-head">
+    <span class="l-brand">L.A.N.E.</span>
+    <span class="l-grow"></span>
+    <button class="l-icon" id="close" title="Not this time"
+            aria-label="Dismiss">${LaneUI.icons.close}</button>
   </div>
-  <div class="body">
-    <span class="tag">${esc(a.lane_label)}</span>
-    <div class="lead">A model would answer this better than a list of links.</div>
+  <div class="l-pad">
+    <span class="l-pill l-pill--${esc(a.lane)}">${esc(a.lane_label)}</span>
+    <div class="lead l-sub">A model would answer this better than a list of links.</div>
 
-    ${same
-      ? row("Use", p.cheap, "cheapest and the best fit")
-      : (p.cheap ? row("Cheapest", p.cheap, null) : "") +
-        (p.best ? row("Best", p.best, p.best.fit ? "" : null) : "")}
+    <div class="picks">
+      ${same
+        ? row("Use", p.cheap, "cheapest and the best fit")
+        : (p.cheap ? row("Cheapest", p.cheap, null) : "") +
+          (p.best ? row("Best", p.best, p.best.fit ? "" : null) : "")}
+    </div>
 
     ${needsSetup ? `<div class="setup">
-        <button id="setup">Tell LANE which models you actually have →</button>
-        <div class="d">Right now it is guessing from the full list.</div>
+        <button class="l-btn--link" id="setup">
+          Tell LANE which models you actually have
+        </button>
+        <div class="l-micro" style="margin-top:2px">
+          Right now it is guessing from the full list.
+        </div>
       </div>` : ""}
 
-    <div class="foot"><button id="never">Never on searches</button></div>
+    <div class="foot">
+      <button class="l-btn--link" id="never">Never on searches</button>
+    </div>
   </div>
 </div>`;
 

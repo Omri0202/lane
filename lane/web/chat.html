@@ -4,81 +4,66 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>L.A.N.E.</title>
+<script src="/ui.js"></script>
+<script>LaneUI.mount();</script>
 <style>
 /* Everything is inline and self-hosted. The server this page ships with may be
    the only thing running, and a chat window that needs a CDN to render is a
    chat window that breaks on a train. */
-:root {
-  --bg: #ffffff; --panel: #f6f7f9; --line: #e3e6ea;
-  --ink: #14171a; --dim: #6b7480; --faint: #99a1ac;
-  --accent: #3b6df5; --accent-ink: #ffffff;
-  --good: #1a8a5a; --warn: #a8710a;
-  --bubble-you: #eef2fb;
-  --radius: 14px;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101215; --panel: #171a1f; --line: #262b33;
-    --ink: #e8eaed; --dim: #9aa3ae; --faint: #6d7681;
-    --accent: #5b87ff; --accent-ink: #0b0d10;
-    --good: #4ec98a; --warn: #e0b050;
-    --bubble-you: #1c222e;
-  }
-}
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
-  background: var(--bg); color: var(--ink);
+  background: var(--l-bg); color: var(--l-ink);
   font: 15px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
   display: flex; flex-direction: column;
 }
 
 /* ── header ─────────────────────────────────────────────────────────────── */
 header {
-  border-bottom: 1px solid var(--line); background: var(--panel);
+  border-bottom: 1px solid var(--l-line); background: var(--l-panel);
   padding: 10px 16px; display: flex; align-items: center; gap: 16px;
   flex-wrap: wrap; position: sticky; top: 0; z-index: 5;
 }
 .brand { font-weight: 650; letter-spacing: .08em; font-size: 13px; }
-.modes { display: flex; gap: 2px; background: var(--bg);
-         border: 1px solid var(--line); border-radius: 9px; padding: 2px; }
+.modes { display: flex; gap: 2px; background: var(--l-bg);
+         border: 1px solid var(--l-line); border-radius: 9px; padding: 2px; }
 .modes button {
-  border: 0; background: transparent; color: var(--dim); cursor: pointer;
+  border: 0; background: transparent; color: var(--l-dim); cursor: pointer;
   font: inherit; font-size: 12.5px; padding: 5px 11px; border-radius: 7px;
 }
-.modes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.modes button[aria-pressed="true"] { background: var(--l-accent); color: var(--l-accent-ink); }
 .spacer { flex: 1 1 auto; }
-.savings { font-size: 12.5px; color: var(--dim); text-align: right; line-height: 1.4; }
-.savings b { color: var(--good); }
+.savings { font-size: 12.5px; color: var(--l-dim); text-align: right; line-height: 1.4; }
+.savings b { color: var(--l-good); }
 .ghost {
-  border: 1px solid var(--line); background: var(--bg); color: var(--dim);
+  border: 1px solid var(--l-line); background: var(--l-bg); color: var(--l-dim);
   border-radius: 8px; padding: 6px 11px; font: inherit; font-size: 12.5px;
   cursor: pointer;
 }
-.ghost:hover { color: var(--ink); }
+.ghost:hover { color: var(--l-ink); }
 
 /* ── conversation ───────────────────────────────────────────────────────── */
 main { flex: 1 1 auto; overflow-y: auto; }
 .thread { max-width: 780px; margin: 0 auto; padding: 24px 16px 8px; }
 .msg { margin-bottom: 22px; }
-.msg .who { font-size: 11.5px; color: var(--faint); margin-bottom: 5px;
+.msg .who { font-size: 11.5px; color: var(--l-faint); margin-bottom: 5px;
             letter-spacing: .04em; text-transform: uppercase; }
 .bubble { white-space: pre-wrap; overflow-wrap: anywhere; }
 .msg.you .bubble {
   background: var(--bubble-you); padding: 11px 14px;
   border-radius: var(--radius); display: inline-block; max-width: 100%;
 }
-.meta { margin-top: 7px; font-size: 12px; color: var(--faint);
+.meta { margin-top: 7px; font-size: 12px; color: var(--l-faint);
         display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
 .lane-tag { padding: 1.5px 8px; border-radius: 999px; font-size: 11px;
             font-weight: 600; letter-spacing: .02em; }
 .cost { font-variant-numeric: tabular-nums; }
-.note { color: var(--warn); }
+.note { color: var(--l-warn); }
 .err { color: #d6455a; }
 
 /* Each lane gets its own colour so the routing is legible at a glance rather
    than something you have to read. */
-.lane-trivial   { background: #8a919b22; color: var(--dim); }
+.lane-trivial   { background: #8a919b22; color: var(--l-dim); }
 .lane-simple    { background: #14b8a622; color: #0d9488; }
 .lane-general   { background: #3b82f622; color: #3b6df5; }
 .lane-longform  { background: #f59e0b22; color: #b4780a; }
@@ -97,52 +82,74 @@ main { flex: 1 1 auto; overflow-y: auto; }
 }
 
 /* ── composer ───────────────────────────────────────────────────────────── */
-footer { border-top: 1px solid var(--line); background: var(--panel); padding: 12px 16px; }
+footer { border-top: 1px solid var(--l-line); background: var(--l-panel); padding: 12px 16px; }
 .composer { max-width: 780px; margin: 0 auto; display: flex; gap: 9px; align-items: flex-end; }
 textarea {
-  flex: 1 1 auto; resize: none; font: inherit; color: var(--ink);
-  background: var(--bg); border: 1px solid var(--line);
+  flex: 1 1 auto; resize: none; font: inherit; color: var(--l-ink);
+  background: var(--l-bg); border: 1px solid var(--l-line);
   border-radius: 11px; padding: 11px 13px; max-height: 180px; min-height: 44px;
 }
-textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+textarea:focus { outline: 2px solid var(--l-accent); outline-offset: -1px; }
 .send {
-  background: var(--accent); color: var(--accent-ink); border: 0;
+  background: var(--l-accent); color: var(--l-accent-ink); border: 0;
   border-radius: 11px; padding: 12px 18px; font: inherit; font-weight: 600;
   cursor: pointer; height: 44px;
 }
 .send:disabled { opacity: .45; cursor: default; }
-.hint { max-width: 780px; margin: 7px auto 0; font-size: 11.5px; color: var(--faint); }
+.hint { max-width: 780px; margin: 7px auto 0; font-size: 11.5px; color: var(--l-faint); }
 
-.empty { text-align: center; color: var(--dim); padding: 56px 20px; }
-.empty h1 { font-size: 19px; font-weight: 600; margin: 0 0 8px; color: var(--ink); }
+.empty { text-align: center; color: var(--l-dim); padding: 56px 20px; }
+.empty h1 { font-size: 19px; font-weight: 600; margin: 0 0 8px; color: var(--l-ink); }
 .empty p { margin: 0 auto; max-width: 460px; font-size: 14px; }
 .empty .routes { margin-top: 26px; font-size: 12.5px; display: inline-block; text-align: left; }
 .empty .routes div { margin: 4px 0; }
 /* The offer. Shown instead of an error when the only thing standing between
    the user and an answer is a key they have not added yet. */
-.offer { border: 1px solid var(--line); border-radius: var(--radius);
-         background: var(--panel); padding: 14px; margin-top: 6px; }
+.offer { border: 1px solid var(--l-line); border-radius: var(--radius);
+         background: var(--l-panel); padding: 14px; margin-top: 6px; }
 .offer .head { font-size: 13px; font-weight: 650; }
-.offer .sub { font-size: 13px; color: var(--dim); margin-top: 4px; }
+.offer .sub { font-size: 13px; color: var(--l-dim); margin-top: 4px; }
 .offer .prov { margin-top: 12px; padding-top: 12px;
-               border-top: 1px solid var(--line); }
+               border-top: 1px solid var(--l-line); }
 .offer .pname { font-size: 13px; font-weight: 600; }
-.offer .mlist { font-size: 12.5px; color: var(--dim); margin-top: 2px; }
+.offer .mlist { font-size: 12.5px; color: var(--l-dim); margin-top: 2px; }
 .offer .keyrow { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
 .offer input { flex: 1 1 240px; font: inherit; font-size: 13px;
-               padding: 8px 10px; border: 1px solid var(--line);
-               border-radius: 9px; background: var(--bg); color: var(--ink); }
+               padding: 8px 10px; border: 1px solid var(--l-line);
+               border-radius: 9px; background: var(--l-bg); color: var(--l-ink); }
 .offer button { font: inherit; font-size: 13px; padding: 8px 14px;
                 border-radius: 9px; border: 0; cursor: pointer;
-                background: var(--accent); color: var(--accent-ink);
+                background: var(--l-accent); color: var(--l-accent-ink);
                 font-weight: 600; }
 .offer button:disabled { opacity: .5; cursor: default; }
 .offer .out { font-size: 12.5px; margin-top: 7px; }
-.offer .out.ok { color: var(--good); }
+.offer .out.ok { color: var(--l-good); }
 .offer .out.bad { color: #d6455a; }
-.offer a { color: var(--accent); font-size: 12px; }
+.offer a { color: var(--l-accent); font-size: 12px; }
 .dots::after { content: "▍"; animation: blink 1.1s steps(2) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
+
+/* ── aligned to the design system ──────────────────────────────────────────
+   Colour, radius, elevation and type all come from ui.js now. What stays here
+   is this page's layout, which is genuinely its own: a setup form and a chat
+   transcript are not shaped like a 318px card. */
+body { font-family: var(--l-font); }
+h1 { font-size: 23px; font-weight: 650; letter-spacing: -.018em; }
+h2 { font-size: 10px; font-weight: 700; letter-spacing: .09em; }
+button { border-radius: var(--l-r-md); border-color: var(--l-line-2);
+         font-weight: 560; transition: background .13s ease,
+         border-color .13s ease, transform .06s ease; }
+button:hover:not(:disabled) { background: var(--l-sunk); }
+button:active:not(:disabled) { transform: translateY(.5px); }
+button:focus-visible { outline: 2px solid var(--l-accent); outline-offset: 2px; }
+button.primary { border-color: transparent; font-weight: 620; }
+button.primary:hover:not(:disabled) { background: var(--l-accent);
+                                      filter: brightness(1.08); }
+input[type=password], input[type=text], textarea {
+  border-radius: var(--l-r-md); border-color: var(--l-line-2); }
+input:focus, textarea:focus { outline: none; border-color: var(--l-accent);
+  box-shadow: 0 0 0 3px var(--l-accent-soft); }
+code { font-family: var(--l-mono); }
 </style>
 </head>
 <body>

@@ -170,6 +170,14 @@ def main() -> None:
           f"({len(js):,} bytes, {len(payload['TRAIN'])} training examples, "
           f"{len(models)} models)")
 
+    # The design system lives in the package, because `lane serve` has to be
+    # able to hand it to its own pages from an installed wheel. Chrome cannot
+    # fetch it from a server that may not be running, so the extension gets a
+    # copy - mirrored here rather than edited twice, and checked by a test.
+    ui = (ROOT / "lane" / "web" / "ui.js").read_text(encoding="utf-8")
+    (ROOT / "extension" / "ui.js").write_text(ui, encoding="utf-8")
+    print(f"wrote extension/ui.js ({len(ui):,} bytes, mirrored from lane/web)")
+
 
 if __name__ == "__main__":
     main()

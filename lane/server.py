@@ -1210,6 +1210,24 @@ async def dev_search(q: str = ""):
                         headers={"Cache-Control": "no-store"})
 
 
+@app.get("/ui.js")
+async def ui_js():
+    """The design system, for this server's own pages.
+
+    The extension carries its own copy - a content script cannot depend on a
+    server being up - but the pages served from here can just ask for it, so
+    the setup and chat pages look like the panel without repeating a line of
+    it. tools/build_core.py keeps the two in step.
+    """
+    path = config.PKG / "web" / "ui.js"
+    if not path.is_file():
+        return Response("/* design system missing */",
+                        media_type="application/javascript")
+    return Response(path.read_text(encoding="utf-8"),
+                    media_type="application/javascript",
+                    headers={"Cache-Control": "no-store"})
+
+
 @app.get("/dev/ext/{path:path}")
 async def dev_extension(path: str):
     """Serve the extension's own files, so its pages can be opened and driven
@@ -1370,7 +1388,7 @@ btn.addEventListener("click", () => {{
   }});
 }});
 </script>
-<script src="/dev/core.js"></script><script src="/dev/advisor.js"></script>""")
+<script src="/dev/ext/ui.js"></script><script src="/dev/core.js"></script><script src="/dev/ext/profile.js"></script><script src="/dev/advisor.js"></script>""")
 
 
 @app.get("/lane/catalog")

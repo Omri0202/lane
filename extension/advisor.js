@@ -94,140 +94,67 @@
 
   root.innerHTML = `
 <style>
-  :host { all: initial;
-    --bg:#fff; --panel:#f6f7f9; --line:#e3e6ea; --ink:#14171a;
-    --dim:#6b7480; --faint:#99a1ac; --good:#1a8a5a; --alert:#c2410c;
-    --accent:#3b6df5; --accent-ink:#fff; }
-  @media (prefers-color-scheme: dark) {
-    :host { --bg:#171a1f; --panel:#1e222a; --line:#2b313a; --ink:#e8eaed;
-            --dim:#9aa3ae; --faint:#6d7681; --good:#4ec98a; --alert:#fb923c;
-            --accent:#5b87ff; --accent-ink:#0b0d10; }
-  }
-  * { box-sizing: border-box; }
-  .card {
-    pointer-events: auto;
-    font: 13px/1.5 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--ink);
-    border: 1px solid var(--line); border-radius: 13px;
-    box-shadow: 0 8px 28px rgba(0,0,0,.16), 0 1px 3px rgba(0,0,0,.08);
-    overflow: hidden;
-    transform: translateY(8px); opacity: 0;
-    transition: transform .16s ease, opacity .16s ease;
-  }
-  .card.show { transform: translateY(0); opacity: 1; }
+${LaneUI.css}
 
-  .top { display:flex; align-items:center; gap:7px; padding:7px 9px 7px 11px;
-         background:var(--panel); border-bottom:1px solid var(--line); }
-  .brand { font-size:10px; font-weight:700; letter-spacing:.11em;
-           color:var(--faint); }
-  .grow { flex:1; }
-  .seg { display:flex; gap:2px; background:var(--bg); padding:2px;
-         border:1px solid var(--line); border-radius:7px; }
-  .seg button { border:0; background:transparent; color:var(--dim);
-                font:inherit; font-size:10px; font-weight:700;
-                letter-spacing:.06em; padding:3px 9px; border-radius:5px;
-                cursor:pointer; }
-  .seg button[aria-pressed="true"] { background:var(--accent);
-                                     color:var(--accent-ink); }
-  .x { border:0; background:transparent; color:var(--faint); cursor:pointer;
-       font-size:15px; line-height:1; padding:2px 4px; border-radius:5px; }
-  .x:hover { color:var(--ink); background:var(--line); }
+/* Only what is genuinely particular to this panel. Everything structural -
+   the card, the rows, the buttons, the pills, the type scale - comes from
+   ui.js, so the panel, the search card and the launcher are recognisably the
+   same object rather than three that happen to share a colour. */
+:host { display:block; }
 
-  .body { padding: 10px 11px 11px; }
-  .lead { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
-  .tag { padding:2px 8px; border-radius:999px; font-size:10px;
-         font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
-  .toks { font-size:10.5px; color:var(--faint);
-          font-variant-numeric:tabular-nums; }
+.pick { margin-top: var(--l-3); }
+.headline { margin-top: 5px; font-size: 12px; }
+.headline.save { color: var(--l-good); font-weight: 600; }
 
-  .pick { margin-top:9px; padding-top:9px; border-top:1px solid var(--line); }
-  .label { font-size:9.5px; color:var(--faint); letter-spacing:.07em;
-           text-transform:uppercase; }
-  .row { display:flex; align-items:baseline; gap:8px; margin-top:2px; }
-  .name { font-size:15px; font-weight:650; flex:1; }
-  .price { font-size:13px; font-weight:600;
-           font-variant-numeric:tabular-nums; }
-  .save { margin-top:4px; font-size:11.5px; color:var(--good); font-weight:600; }
-  .same { margin-top:4px; font-size:11.5px; color:var(--dim); }
-  .fit  { margin-top:4px; font-size:11.5px; color:var(--dim); }
+.alts { width:100%; margin-top: var(--l-3); border-collapse: collapse;
+        font-size: 11px; color: var(--l-dim); }
+.alts td { padding: 3px 0; }
+/* Wide enough for PERFORMANCE, which is the longest label and was running
+   into the model name beside it. */
+.alts td.m { width: 82px; padding-right: 6px; }
+.alts td.n { padding-right: 4px; }
+.alts tr.on td { color: var(--l-ink); font-weight: 600; }
 
-  .use { margin-top:9px; width:100%; border:0; border-radius:8px;
-         background:var(--accent); color:var(--accent-ink); font:inherit;
-         font-size:12.5px; font-weight:650; padding:7px 10px; cursor:pointer; }
-  .use:hover { filter:brightness(1.07); }
-  .use:disabled { opacity:.55; cursor:default; }
-  .useout { margin-top:5px; font-size:11px; color:var(--dim); }
-  .useout.ok { color:var(--good); }
-  .useout.bad { color:var(--alert); }
+.favs { margin-top: var(--l-3); padding-top: var(--l-3);
+        border-top: 1px solid var(--l-line);
+        display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
 
-  .favs { margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
-          display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
-  .favlabel { font-size:9.5px; color:var(--faint); letter-spacing:.07em;
-              text-transform:uppercase; }
-  .favs button { border:1px solid var(--line); background:var(--bg);
-                 color:var(--ink); border-radius:7px; padding:3px 9px;
-                 font:inherit; font-size:11px; cursor:pointer; }
-  .favs button:hover { border-color:var(--accent); }
+.why { margin-top: var(--l-3); padding-top: var(--l-3);
+       border-top: 1px solid var(--l-line); }
 
-  table { width:100%; margin-top:9px; border-collapse:collapse;
-          font-size:11px; color:var(--dim); }
-  td { padding:2px 0; }
-  td.m { color:var(--faint); text-transform:uppercase; letter-spacing:.04em;
-         font-size:9.5px; width:66px; }
-  td.p { text-align:right; font-variant-numeric:tabular-nums; }
-  tr.on td { color:var(--ink); font-weight:600; }
+.setup { margin-top: var(--l-2); padding-top: var(--l-2);
+         border-top: 1px dashed var(--l-line); }
 
-  .why { margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
-         font-size:11.5px; color:var(--dim); }
+.useout { margin-top: 6px; font-size: 11px; color: var(--l-dim);
+          min-height: 15px; }
 
-  .alert { margin-top:9px; padding-top:9px; border-top:1px solid var(--line); }
-  .alert .head { color:var(--alert); font-weight:700; font-size:11px;
-                 letter-spacing:.04em; text-transform:uppercase; }
-  .go { display:flex; align-items:baseline; gap:6px; margin-top:6px;
-        font-size:12px; }
-  .go .site { font-weight:650; }
-  .go .mdl { color:var(--dim); flex:1; }
-  .go .p { font-variant-numeric:tabular-nums; color:var(--dim); }
+.gone { margin-top: var(--l-3); padding-top: var(--l-3);
+        border-top: 1px solid var(--l-line); }
+.go { display:flex; align-items:baseline; gap: var(--l-2); margin-top: 6px;
+      font-size: 12px; }
+.go .site { font-weight: 620; }
+.go .mdl  { color: var(--l-dim); flex: 1; }
 
-  .score { border-top:1px solid var(--line); background:var(--panel);
-           padding:7px 11px; font-size:10.5px; color:var(--dim);
-           display:flex; align-items:baseline; gap:6px; }
-  .score b { color:var(--good); font-size:11.5px; }
-  .score .n { margin-left:auto; color:var(--faint); }
+.score { border-top: 1px solid var(--l-line); background: var(--l-panel);
+         padding: 8px var(--l-3); font-size: 11px; color: var(--l-dim);
+         display: flex; align-items: baseline; gap: 6px; }
+.score b { color: var(--l-good); font-size: 12px; }
+.score .n { margin-left: auto; color: var(--l-faint); }
 
-  .setup { margin-top:8px; padding-top:8px; border-top:1px dashed var(--line);
-           font-size:10.5px; color:var(--faint); }
-  .setup a, .offline a { color:var(--accent); }
-  .offline { padding:11px; font-size:11.5px; color:var(--dim); }
-  .offline code { background:var(--panel); padding:1px 5px; border-radius:4px; }
-
-  .tag-trivial   { background:#8a919b22; color:var(--dim); }
-  .tag-simple    { background:#14b8a622; color:#0d9488; }
-  .tag-general   { background:#3b82f622; color:#3b6df5; }
-  .tag-longform  { background:#f59e0b22; color:#b4780a; }
-  .tag-reasoning { background:#8b5cf622; color:#7c4ddd; }
-  .tag-vision    { background:#06b6d422; color:#0891b2; }
-  .tag-tools     { background:#22c55e22; color:#15954c; }
-  .tag-image_gen { background:#ec489922; color:#be2e68; }
-  .tag-translate { background:#a855f722; color:#8b3fd4; }
-  .tag-web_search{ background:#0ea5e922; color:#0277b8; }
-  @media (prefers-color-scheme: dark) {
-    .tag-simple{color:#2dd4bf} .tag-general{color:#7ba2ff}
-    .tag-longform{color:#e0b050} .tag-reasoning{color:#a98bff}
-    .tag-vision{color:#22d3ee} .tag-tools{color:#4ade80}
-    .tag-image_gen{color:#f472b6} .tag-translate{color:#c084fc}
-    .tag-web_search{color:#38bdf8}
-  }
+.card { transform: translateY(6px); opacity: 0;
+        transition: transform .16s cubic-bezier(.2,.7,.3,1), opacity .16s ease; }
+.card.show { transform: none; opacity: 1; }
 </style>
-<div class="card" id="card">
-  <div class="top">
-    <span class="brand">L.A.N.E.</span>
-    <span class="grow"></span>
-    <div class="seg" id="seg" role="group" aria-label="What to optimise for">
+<div class="l-card card" id="card">
+  <div class="l-head">
+    <span class="l-brand">L.A.N.E.</span>
+    <span class="l-grow"></span>
+    <div class="l-seg" id="seg" role="group" aria-label="What to optimise for">
       <button data-v="save" aria-pressed="true"  title="Cheapest model that still does the job">SAVE</button>
       <button data-v="best" aria-pressed="false" title="Model whose strengths fit this request">BEST</button>
     </div>
-    <button class="x" id="close" title="Hide until next reload">×</button>
+    <button class="l-icon" id="close" title="Hide until next reload"
+            aria-label="Hide">${LaneUI.icons.close}</button>
   </div>
   <div id="content"></div>
   <div class="score" id="score" style="display:none"></div>
@@ -432,8 +359,9 @@
       .slice(0, 3);
     if (!favs.length) return "";
     return `<div class="favs" id="favs">
-      <div class="favlabel">Yours</div>
-      ${favs.map((m) => `<button data-fav="${esc(m.id)}"
+      <span class="l-label">Yours</span>
+      ${favs.map((m) => `<button class="l-btn" style="padding:3px 9px;font-size:11px"
+        data-fav="${esc(m.id)}"
         data-fav-name="${esc(m.display)}">${esc(m.display)}</button>`).join("")}
     </div>`;
   }
@@ -443,9 +371,9 @@
       ? "priced per image"
       : "~" + a.est_in + " in · ~" + Number(a.est_out).toLocaleString() + " out";
     return `
-      <div class="lead">
-        <span class="tag tag-${esc(a.lane)}">${esc(a.lane_label)}</span>
-        <span class="toks">${tokens}</span>
+      <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span class="l-pill l-pill--${esc(a.lane)}">${esc(a.lane_label)}</span>
+        <span class="l-micro l-num">${tokens}</span>
       </div>`;
   }
 
@@ -454,16 +382,16 @@
       <div class="go">
         <span class="site">${esc(e.site)}</span>
         <span class="mdl">${esc(e.display)}</span>
-        <span class="p">${money(e.cost)}</span>
+        <span class="l-num">${money(e.cost)}</span>
       </div>`).join("");
     content.innerHTML = `
-      <div class="body">
+      <div class="l-pad">
         ${header(a)}
-        <div class="alert">
-          <div class="head">${esc(a.site_name)} can't do this</div>
+        <div class="gone">
+          <div class="l-label l-alert">${esc(a.site_name)} can't do this</div>
           ${rows}
         </div>
-        <div class="why">${esc(a.explain)}</div>
+        <div class="why l-sub">${esc(a.explain)}</div>
       </div>`;
     show();
   }
@@ -472,9 +400,9 @@
     const rec = a.recommend || {};
     const rows = (a.options || []).map((o) => `
       <tr class="${o.id === rec.id ? "on" : ""}">
-        <td class="m">${esc(o.mode)}</td>
+        <td class="m l-label" style="font-size:9px">${esc(o.mode)}</td>
         <td>${esc(o.display)}</td>
-        <td class="p">${money(o.cost)}</td>
+        <td class="l-num" style="text-align:right;white-space:nowrap">${money(o.cost)}</td>
       </tr>`).join("");
 
     // SAVE leads with the money; BEST leads with why this model suits the job.
@@ -482,36 +410,56 @@
     let headline;
     if (a.variation === "best") {
       headline = a.fit
-        ? `<div class="fit">${esc(a.fit)}</div>`
-        : `<div class="same">the strongest fit available to you</div>`;
+        ? `<div class="headline l-sub">${esc(a.fit)}</div>`
+        : `<div class="headline l-sub">the strongest fit available to you</div>`;
     } else if (a.is_top) {
-      headline = `<div class="same">Nothing lighter clears the bar.</div>`;
+      // a.explain already says this, and in more useful words. Two
+      // sentences that mean the same thing read as padding.
+      headline = "";
     } else {
-      headline = `<div class="save">saves ${money(a.saving)} · ${a.factor}× cheaper than ${esc((a.top || {}).display)}</div>`;
+      headline = `<div class="headline save">saves ${money(a.saving)} · ${a.factor}× cheaper than ${esc((a.top || {}).display)}</div>`;
     }
 
     content.innerHTML = `
-      <div class="body">
+      <div class="l-pad">
         ${header(a)}
         <div class="pick">
-          <div class="label">${a.variation === "best" ? "Best fit on" : "Cheapest that fits on"} ${esc(SITE_NAME)}</div>
-          <div class="row">
-            <span class="name">${esc(rec.display)}</span>
-            <span class="price">${money(rec.cost)}</span>
+          <div class="l-label">${a.variation === "best" ? "Best fit on" : "Cheapest that fits on"} ${esc(SITE_NAME)}</div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-top:3px">
+            <span class="l-lead" style="flex:1">${esc(rec.display)}</span>
+            <span class="l-num" style="font-size:13px;font-weight:600">${money(rec.cost)}</span>
           </div>
           ${headline}
-          <button class="use" id="use">Use ${esc(rec.display)}</button>
+          <button class="l-btn l-btn--primary l-btn--block" id="use"
+                  style="margin-top:10px">
+            Use ${esc(rec.display)} ${LaneUI.icons.arrow}
+          </button>
           <div class="useout" id="useout"></div>
         </div>
-        ${rows ? `<table>${rows}</table>` : ""}
+        ${rows ? `<table class="alts">${rows}</table>` : ""}
         ${favouriteRow(rec.id)}
-        <div class="why">${esc(a.explain)}</div>
+        <div class="why l-sub">${esc(a.explain)}</div>
         ${a.assuming_all ? `<div class="setup">
-           Assuming you can use every ${esc(SITE_NAME)} model.
-           <a href="${BASE}/setup" target="_blank" rel="noreferrer">Tell LANE
-           which ones you actually have</a> and this gets sharper.
+           <button class="l-btn--link" id="setupLink">
+             Tell LANE which models you actually have
+           </button>
+           <div class="l-micro" style="margin-top:2px">
+             Right now it is guessing from the full list.
+           </div>
          </div>` : ""}
       </div>`;
+
+    const setupLink = root.getElementById("setupLink");
+    if (setupLink) setupLink.addEventListener("click", () => {
+      try {
+        if (typeof chrome !== "undefined" && chrome.runtime
+            && chrome.runtime.sendMessage) {
+          chrome.runtime.sendMessage({ type: "lane:open-setup" });
+          return;
+        }
+      } catch (e) { /* fall through */ }
+      window.open(BASE.replace(/\/$/, "") + "/dev/ext/onboarding.html", "_blank");
+    });
 
     const favRow = root.getElementById("favs");
     if (favRow) {
@@ -559,7 +507,7 @@
 
   function renderOffline() {
     content.innerHTML = `
-      <div class="offline">
+      <div class="l-pad l-sub">
         LANE is not running. Start it with <code>lane serve</code> and this
         panel will pick up on its own.<br><br>
         First time? Open <a href="${BASE}/setup" target="_blank"
