@@ -267,6 +267,37 @@ const LaneUI = (() => {
   box-shadow: 0 1px 2px rgba(16,24,40,.10);
 }
 
+/* ── a switch ──────────────────────────────────────────────────────────────
+   For a setting that is on or off, as distinct from .l-seg, which is for a
+   choice between two named things. Green when on: that convention is older
+   and stronger than any palette, and a control whose whole job is to report
+   its own state should not make anybody read a label to work it out.
+
+   Not the accent colour, deliberately. Violet is reserved for the one action
+   a view wants you to take, and a settings toggle is not that - it is a thing
+   you flip and then forget about.                                          */
+.l-switch {
+  position: relative; flex: none; display: inline-block;
+  width: 38px; height: 22px; padding: 0; border: 0; cursor: pointer;
+  border-radius: 999px; background: var(--l-line-2);
+  transition: background .18s cubic-bezier(.2,.7,.3,1);
+  -webkit-appearance: none; appearance: none;
+}
+.l-switch::after {
+  content: ""; position: absolute; top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(16,24,40,.32);
+  transition: transform .18s cubic-bezier(.2,.7,.3,1);
+}
+.l-switch[aria-checked="true"] { background: var(--l-good); }
+.l-switch[aria-checked="true"]::after { transform: translateX(16px); }
+.l-switch:focus-visible { outline: 2px solid var(--l-accent); outline-offset: 2px; }
+.l-switch:disabled { opacity: .45; cursor: default; }
+
+/* Label, switch, and an explanation under the label. */
+.l-toggle { display: flex; align-items: center; gap: var(--l-3); }
+.l-toggle__text { flex: 1 1 auto; min-width: 0; }
+
 /* ── a choosable row ───────────────────────────────────────────────────────
    The workhorse: a label, a name with its context under it, and a number on
    the right. Used for model picks, providers and options alike, so those all

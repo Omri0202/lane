@@ -166,6 +166,26 @@
    * no way to tell it apart from an ad blocker. The alternative, listing the
    * page in web_accessible_resources, would let any site on the internet frame
    * it, which is a worse trade than a message. */
+  /* Leave the question where the other end will look for it.
+   *
+   * Extension storage rather than the URL, because only two of the three
+   * sites document a prefill parameter and none of them promise to keep it.
+   * Stamped with a time so a tab opened now cannot pick up a question from
+   * last week, and with the site so an unrelated tab cannot pick it up at
+   * all. */
+  const HANDOFF_KEY = "lane.handoff";
+
+  function handOver(site, text) {
+    const payload = { site, text, at: Date.now() };
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        chrome.storage.local.set({ [HANDOFF_KEY]: payload });
+        return;
+      }
+      localStorage.setItem(HANDOFF_KEY, JSON.stringify(payload));
+    } catch (e) { /* the URL and the clipboard are still there */ }
+  }
+
   function openSetup() {
     try {
       if (typeof chrome !== "undefined" && chrome.runtime
@@ -254,7 +274,9 @@
       // the model wants a subscription is finding out too late.
       if (LaneProfile.isPaid(pick.rec.id)) bits.push("costs extra");
       if (note) bits.push(note);
-      if (!PREFILLS[pick.site]) bits.push("copied \u2014 paste it in");
+      // No longer "copied, paste it in": the question is carried over and
+      // typed in on arrival, on every one of the three.
+
       return `
       <button class="l-row l-row--${kind} pick" data-site="${esc(pick.site)}">
         <span class="l-row__tag l-label">${label}</span>
@@ -357,16 +379,35 @@ ${LaneUI.css}
     if (setupBtn) setupBtn.addEventListener("click", openSetup);
 
     for (const b of root.querySelectorAll(".pick")) {
-      b.addEventListener("click", async () => {
+      b.addEventListener("click", () => {
         const site = b.dataset.site;
         const q = pending || query;
-        if (!PREFILLS[site]) {
-          try { await navigator.clipboard.writeText(q); } catch (e) { /* fine */ }
-        }
+
+        /* Handed over before anything can go wrong, and read on arrival by
+         * the content script that is already running on all three sites. The
+         * URL parameter is an optimisation on top of this, not the mechanism
+         * - which is what "copied, paste it in" always was, and that is not
+         * continuing somebody's question, it is asking them to finish the job
+         * by hand. */
+        handOver(site, q);
+
+        /* Opened SYNCHRONOUSLY, and this is not a style preference.
+         *
+         * Chrome permits window.open only while a user activation is live,
+         * and awaiting a promise spends it. Gemini is the only site with no
+         * prefill parameter, so it was the only one that awaited the
+         * clipboard before opening - and therefore the only one where the
+         * popup was blocked and the click did nothing whatsoever. Claude and
+         * ChatGPT skipped that await, which is exactly why they worked. */
         const url = PREFILLS[site]
           ? SITE_URL[site] + encodeURIComponent(q)
           : SITE_URL[site];
         window.open(url, "_blank", "noopener");
+
+        // The clipboard as a third line of defence, never awaited.
+        if (!PREFILLS[site]) {
+          try { navigator.clipboard.writeText(q); } catch (e) { /* fine */ }
+        }
         hide();
       });
     }

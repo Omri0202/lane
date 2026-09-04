@@ -600,17 +600,22 @@ ${LaneUI.css}
         ${rows ? `<table class="alts">${rows}</table>` : ""}
         ${favouriteRow(rec.id)}
         <div class="why l-sub">${esc(a.explain)}</div>
-        ${a.withPaid ? `<div class="paidnote">
-           <span class="l-label l-warn">Costs extra</span>
-           <div class="l-sub" style="margin-top:3px">
+        ${(a.withPaid || a.paidOn) ? `<div class="paidnote">
+           <span class="l-label l-warn">${a.paidOn ? "Paid models on" : "Costs extra"}</span>
+           ${a.withPaid ? `<div class="l-sub" style="margin-top:3px">
              <b>${esc(a.withPaid.display)}</b> would ${
                a.withPaid.cost < (rec.cost || 0) ? "cost less" : "fit this better"
              }, but it is not on the free plan${a.withPaid.cost ? " \u2014 about "
                + money(a.withPaid.cost) + " on the API" : ""}.
+           </div>` : `<div class="l-sub" style="margin-top:3px">
+             Suggestions may name a model your plan does not include.
+           </div>`}
+           <div class="l-toggle" style="margin-top:7px">
+             <span class="l-toggle__text l-sub">Include models that cost extra</span>
+             <button class="l-switch" id="showPaid" role="switch"
+                     aria-checked="${a.paidOn ? "true" : "false"}"
+                     aria-label="Include models that cost extra"></button>
            </div>
-           <button class="l-btn--link" id="showPaid" style="margin-top:4px">
-             Include models that cost extra
-           </button>
          </div>` : ""}
         ${a.assuming_all ? `<div class="setup">
            <span class="ico">${LaneUI.icons.gear}</span>
@@ -632,8 +637,10 @@ ${LaneUI.css}
     const showPaid = root.getElementById("showPaid");
     if (showPaid) showPaid.addEventListener("click", () => {
       if (!profile) return;
-      profile.paid = true;
-      LaneProfile.patch({ paid: true });
+      const on = showPaid.getAttribute("aria-checked") !== "true";
+      showPaid.setAttribute("aria-checked", String(on));
+      profile.paid = on;
+      LaneProfile.patch({ paid: on });
       allowedModels = withoutMissing(LaneProfile.allowed(profile));
       if (lastText) advise(lastText);
     });
@@ -837,8 +844,17 @@ ${LaneUI.css}
        * Only when it is a DIFFERENT model. Most requests do not have a better
        * paid answer, and a paywall note under every one of those is an advert.
        */
+      /* Computed when paid models are ON as well as off.
+       *
+       * A control that only exists while it is switched off is a control you
+       * cannot undo: the old link turned paid models on and then vanished
+       * along with the note it lived in, and the only way back was a
+       * different screen. */
+      a.paidOn = !!(profile && profile.paid);
       a.withPaid = null;
-      if (profile && !profile.paid && !a.unavailable_here) {
+      if (profile && profile.paid) {
+        // Nothing to offer - the switch is on. The note reports that.
+      } else if (profile && !profile.paid && !a.unavailable_here) {
         const uncapped = LaneCore.advise(
           text, SITE, variation, LaneProfile.allowedIgnoringCost(profile));
         if (uncapped && uncapped.recommend
@@ -926,6 +942,104 @@ ${LaneUI.css}
      makes it know more: who this person is, then - if and only if something
      is listening on this machine - what it has recorded. Nothing here is a
      precondition, which is why there is no command to run. */
+  /* ── arriving from a search ────────────────────────────────────────────
+   * Somebody clicked a model on Google and this is the tab that opened. The
+   * question is waiting in extension storage; put it in the box.
+   *
+   * Typed rather than assigned. Every one of these composers is driven by a
+   * framework that tracks its own state, and setting .value or .textContent
+   * behind its back leaves the visible text and the state disagreeing - the
+   * words are on screen and the send button stays disabled. The native
+   * setter plus an input event is how you tell React; execCommand is how you
+   * tell a contenteditable. */
+  const HANDOFF_KEY = "lane.handoff";
+  const HANDOFF_TTL = 90 * 1000;
+
+  function fillComposer(text) {
+    /* The biggest visible text field on the page.
+     *
+     * NOT "wider than 120px", which is what this said first and which is a
+     * guess about somebody else's layout: a composer in a narrow window, a
+     * split view or a phone is none of those things, and the handoff then
+     * silently did nothing. Largest area is the honest version of the same
+     * idea - on a chat site the thing you type into is the biggest box on
+     * the screen. */
+    let el = null, best = 0;
+    for (const n of document.querySelectorAll(
+        'textarea, [contenteditable="true"], [role="textbox"]')) {
+      const b = n.getBoundingClientRect();
+      const area = b.width * b.height;
+      if (!area) continue;                         // hidden
+      if (n.disabled || n.readOnly) continue;
+      if (area > best) { best = area; el = n; }
+    }
+    if (!el) return false;
+
+    try { el.focus({ preventScroll: false }); } catch (e) { /* fine */ }
+
+    if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+      const proto = el.tagName === "TEXTAREA"
+        ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+      setter.call(el, text);
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    }
+
+    // contenteditable: execCommand is deprecated and is still the only thing
+    // every rich composer treats as real typing.
+    let ok = false;
+    try { ok = document.execCommand("insertText", false, text); } catch (e) { /* fine */ }
+    if (!ok) {
+      el.textContent = text;
+      el.dispatchEvent(new InputEvent("input", {
+        bubbles: true, inputType: "insertText", data: text }));
+    }
+    return true;
+  }
+
+  function readHandoff() {
+    return new Promise((resolve) => {
+      try {
+        if (typeof chrome !== "undefined" && chrome.storage) {
+          chrome.storage.local.get(HANDOFF_KEY, (v) =>
+            resolve((v || {})[HANDOFF_KEY] || null));
+          return;
+        }
+        resolve(JSON.parse(localStorage.getItem(HANDOFF_KEY) || "null"));
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  function clearHandoff() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        chrome.storage.local.remove(HANDOFF_KEY);
+        return;
+      }
+      localStorage.removeItem(HANDOFF_KEY);
+    } catch (e) { /* it will time out on its own */ }
+  }
+
+  async function collectHandoff() {
+    const held = await readHandoff();
+    if (!held || held.site !== SITE) return;
+    // Consumed once, and only if it is recent: a tab opened today must not
+    // pick up a question from last week.
+    clearHandoff();
+    if (Date.now() - (held.at || 0) > HANDOFF_TTL) return;
+
+    // The composer may not exist yet on a site that is still booting.
+    const deadline = Date.now() + 8000;
+    for (;;) {
+      if (fillComposer(held.text)) return;
+      if (Date.now() >= deadline) return;
+      await sleep(200);
+    }
+  }
+
+  collectHandoff();
+
   readLedger()
     .then((v) => { ledger = v; renderScore(v.messages, v.saved); })
     .then(loadProfile)

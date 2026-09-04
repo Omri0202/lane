@@ -389,3 +389,23 @@ def test_a_switch_that_fails_produces_a_suggestion_that_works():
     # Both failure modes, because from where somebody is sitting they are one
     # thing: the panel offered a model and the model did not happen.
     assert "not in this page|did not switch" in src
+
+
+def test_the_paid_setting_is_a_switch_that_goes_both_ways():
+    """It was a link that turned paid models on and then vanished.
+
+    The note it lived in disappeared with it, so the only way back was a
+    different screen. A switch reports its own state and flips both
+    directions, which is the difference between a setting and a trapdoor - so
+    the note is rendered when paid models are ON as well as off.
+    """
+    src = read("advisor.js")
+    assert 'class="l-switch" id="showPaid"' in src
+    assert 'role="switch"' in src and "aria-checked" in src
+    assert "a.paidOn" in src, "the note cannot appear once the switch is on"
+    # And it must toggle, not merely set.
+    assert 'aria-checked") !== "true"' in src
+
+    ui = (EXT / "ui.js").read_text(encoding="utf-8")
+    assert ".l-switch" in ui, "the switch is not in the design system"
+    assert '.l-switch[aria-checked="true"]' in ui

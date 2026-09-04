@@ -171,7 +171,10 @@ def test_it_does_not_claim_a_prefill_it_cannot_do():
     assert "gemini: false" in src
     # The row itself has to say so. Arriving at an empty box wondering where
     # your question went is worse than being told to paste it.
-    assert "copied" in src and "paste it in" in src
+    # The clipboard is a third line of defence now, not the mechanism. What
+    # must hold is that the question actually travels.
+    assert "handOver(site, q)" in src, "the question is not handed over"
+    assert "HANDOFF_KEY" in src
 
 
 def test_it_never_sends_the_query_anywhere():
@@ -290,3 +293,37 @@ def test_turning_the_offer_off_can_be_undone():
     assert 'id="offers"' in popup
     # And it must write the cleared value, not only the off one.
     assert "on ? {} : { off: true }" in popup
+
+
+
+def test_the_tab_is_opened_before_anything_is_awaited():
+    """Chrome permits window.open only while a user activation is live.
+
+    Awaiting a promise spends it. Gemini is the only site with no prefill
+    parameter, so it was the only one that awaited the clipboard before
+    opening - and therefore the only one where the popup was blocked and the
+    click did nothing at all. Claude and ChatGPT skipped that await, which is
+    exactly why they worked and it did not.
+    """
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    body = src[src.index('root.querySelectorAll(".pick")'):]
+    body = body[:body.index("\n    }")]
+    opened = body.index("window.open")
+    assert "await" not in body[:opened], (
+        "something is awaited before the tab is opened; Chrome will block it")
+
+
+def test_the_question_arrives_typed_rather_than_pasted():
+    """"Copied - paste it in" is not continuing somebody's question.
+
+    There is a content script on all three sites already, so the query is
+    handed over through extension storage and typed into the composer on
+    arrival - and typed, not assigned, because every one of these composers is
+    driven by a framework that tracks its own state. Setting .value behind its
+    back leaves the words on screen and the send button disabled.
+    """
+    src = (EXT / "advisor.js").read_text(encoding="utf-8")
+    assert "collectHandoff" in src and "fillComposer" in src
+    assert "HTMLTextAreaElement.prototype" in src, "assigns .value directly"
+    assert "insertText" in src, "no path for a contenteditable composer"
+    assert "HANDOFF_TTL" in src, "a stale question could be picked up"
