@@ -1194,6 +1194,22 @@ async def chat_page():
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
+@app.get("/dev/search", response_class=HTMLResponse)
+async def dev_search(q: str = ""):
+    """A pretend results page, for developing the search offer.
+
+    The offer reads the query out of ?q= exactly as it does on the real
+    engines, so this needs no scraping and behaves identically. What it is
+    really for is the other half of the design: checking that the card stays
+    away from the many searches a model should not be offered for.
+    """
+    path = config.PKG / "web" / "search-harness.html"
+    if not path.is_file():
+        return HTMLResponse("harness missing", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/dev/ext/{path:path}")
 async def dev_extension(path: str):
     """Serve the extension's own files, so its pages can be opened and driven

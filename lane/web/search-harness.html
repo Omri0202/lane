@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>search — LANE harness</title>
+<style>
+/* A results page shaped like the real ones. The point is not the page — the
+   offer reads the query from ?q= and never touches the DOM — but having
+   results underneath is the only way to see whether the card is unobtrusive
+   or in the way. */
+body { margin:0; font:15px/1.6 ui-sans-serif, system-ui, sans-serif;
+       background:#fff; color:#202124; }
+@media (prefers-color-scheme: dark) {
+  body { background:#202124; color:#e8eaed; }
+  .box { background:#303134; border-color:#5f6368; color:#e8eaed; }
+  .r a { color:#8ab4f8; } .r .u { color:#9aa0a6; } .r p { color:#bdc1c6; }
+}
+header { border-bottom:1px solid #dadce0; padding:16px 24px; display:flex;
+         gap:18px; align-items:center; }
+@media (prefers-color-scheme: dark) { header { border-color:#3c4043; } }
+.logo { font-size:20px; font-weight:700; letter-spacing:-.5px; }
+.box { flex:1; max-width:560px; padding:9px 16px; border:1px solid #dfe1e5;
+       border-radius:22px; font:inherit; background:#fff; }
+main { padding:22px 24px; max-width:640px; }
+.r { margin-bottom:26px; }
+.r .u { font-size:12.5px; color:#5f6368; }
+.r a { font-size:19px; color:#1a0dab; text-decoration:none; }
+.r a:hover { text-decoration:underline; }
+.r p { font-size:14px; color:#4d5156; margin:3px 0 0; }
+.hint { margin:0 0 20px; font-size:12.5px; opacity:.6; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">Search</span>
+  <form><input class="box" name="q" id="q" autocomplete="off"></form>
+</header>
+<main>
+  <p class="hint">
+    Harness. Change the query and press Enter — the offer appears only when a
+    model is genuinely the better tool for it.
+  </p>
+  <div class="r">
+    <div class="u">example.com › docs</div>
+    <a href="#">A result that looks like a result</a>
+    <p>The card should sit in the corner without covering any of this.</p>
+  </div>
+  <div class="r">
+    <div class="u">stackoverflow.com › questions</div>
+    <a href="#">Another one</a>
+    <p>Most searches should see no card at all.</p>
+  </div>
+  <div class="r">
+    <div class="u">wikipedia.org › wiki</div>
+    <a href="#">And a third</a>
+    <p>Navigation, live information and short lookups are Google's job.</p>
+  </div>
+</main>
+
+<script>
+document.getElementById("q").value =
+  new URLSearchParams(location.search).get("q") || "";
+</script>
+<script src="/dev/ext/core/lane-core.js"></script>
+<script src="/dev/ext/profile.js"></script>
+<script src="/dev/ext/search.js"></script>
+</body>
+</html>

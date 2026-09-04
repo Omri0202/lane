@@ -370,6 +370,71 @@ Starred models also appear under every panel suggestion as one-click switches �
 the advice is a recommendation, not a ruling, and having to go around the panel
 to disagree with it is how a panel gets dismissed.
 
+### Five questions, once
+
+Installing opens a short interview: which sites you use, which models your plan
+actually gives you, which ones you reach for, what you mostly do, and whether
+you would rather save money or get the best answer. Every question is skippable
+and all of it is changeable later.
+
+That is what turns "use Sonnet 5" into advice about **you**. Somebody on a plan
+without Opus should never be told to use Opus, and somebody who never opens
+ChatGPT should never be pointed at it.
+
+Nothing leaves the browser. No account, no sync, and **no API key** — keys are
+only for the optional local proxy.
+
+### The launcher
+
+Click the toolbar icon before you have opened anything:
+
+```
+  What do you want to do?
+  [ why does my recursive fibonacci take so long   ]
+
+  debug this error   write a function that   summarise this
+
+  REASONING                          on ChatGPT
+  GPT-5                                   $0.012
+  [   Open ChatGPT   ] [  Copy prompt  ]
+
+  YOUR FAVOURITES
+  [ GPT-5 ] [ Claude Opus 4.8 ]
+```
+
+It picks across **the sites you said you use**, and opens the right one. Ask for
+a picture with only Claude selected and it names which of your sites can do it
+instead. The shortcuts are ordered by what you said you mostly do.
+
+Starred models also appear under every panel suggestion as one-click switches —
+the advice is a recommendation, not a ruling, and having to go around the panel
+to disagree with it is how a panel gets dismissed.
+
+### On a search page
+
+Search for something a model would answer better, and a small card appears in
+the corner:
+
+```
+  REASONING
+  A model would answer this better than a list of links.
+  GPT-5                                    $0.012
+  [     Ask ChatGPT instead     ]
+  Never on searches
+```
+
+Your query goes with you — Claude and ChatGPT both accept it in the URL, and
+for Gemini it is copied to the clipboard because it has no such parameter and
+pretending otherwise would drop what you typed.
+
+**When it stays silent is the design.** A card on every search is adware. It
+says nothing for navigation (`facebook`, `npm install react`, a bare domain),
+nothing for short factual lookups Google answers in the box at the top, and
+nothing at all when the query needs **current information** — a model would
+answer that from a stale memory while the real answer sits on the page behind
+the card. Twelve representative queries are asserted in
+`tests/test_search_offer.py`: eight silent, four offered.
+
 ### Installing it
 
 **No Python. No server. No terminal.**

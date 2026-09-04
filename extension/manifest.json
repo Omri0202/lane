@@ -20,6 +20,22 @@
         "advisor.js"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.google.com/search*",
+        "https://www.google.co.uk/search*",
+        "https://www.bing.com/search*",
+        "https://duckduckgo.com/*",
+        "https://search.brave.com/search*",
+        "https://www.ecosia.org/search*"
+      ],
+      "js": [
+        "core/lane-core.js",
+        "profile.js",
+        "search.js"
+      ],
+      "run_at": "document_idle"
     }
   ],
   "icons": {},
