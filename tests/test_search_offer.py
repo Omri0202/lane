@@ -399,8 +399,7 @@ def test_the_mark_leads_the_row_and_every_row_starts_at_the_same_place():
     """
     src = (EXT / "search.js").read_text(encoding="utf-8")
     row = src[src.index("const row = (pick)"):]
-    row = row[:row.index("
-    };")]
+    row = row[:row.index("\n    };")]
     assert row.index("l-row__brand") < row.index("l-row__name"), (
         "the mark comes after the name")
     # No label column left to knock them out of line.
