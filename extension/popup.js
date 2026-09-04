@@ -214,6 +214,53 @@ $("seg").addEventListener("click", (e) => {
 
 $("gear").addEventListener("click", openSetup);
 
+/* The search card's own off switch, which search.js reads on every page it
+   runs on. Kept under the same key rather than in the profile, because a
+   content script on google.com must be able to answer "am I switched off"
+   without loading anything else. */
+const OFFERS_KEY = "lane.searchOffer";
+
+function readOffers() {
+  return new Promise((resolve) => {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        chrome.storage.local.get(OFFERS_KEY, (v) =>
+          resolve((v || {})[OFFERS_KEY] || {}));
+        return;
+      }
+      resolve(JSON.parse(localStorage.getItem(OFFERS_KEY) || "{}"));
+    } catch (e) { resolve({}); }
+  });
+}
+
+function writeOffers(value) {
+  try {
+    if (typeof chrome !== "undefined" && chrome.storage) {
+      chrome.storage.local.set({ [OFFERS_KEY]: value });
+      return;
+    }
+    localStorage.setItem(OFFERS_KEY, JSON.stringify(value));
+  } catch (e) { /* a preference that will not stick is not an error */ }
+}
+
+function paintOffers(on) {
+  for (const b of $("offers").children)
+    b.setAttribute("aria-pressed", String((b.dataset.on === "1") === on));
+}
+
+$("offers").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  const on = b.dataset.on === "1";
+  writeOffers(on ? {} : { off: true });
+  paintOffers(on);
+});
+
+readOffers().then((d) => {
+  paintOffers(!d.off);
+  $("foot").hidden = false;
+});
+
 LaneProfile.load().then((p) => {
   profile = p;
   variation = p.variation === "best" ? "best" : "save";

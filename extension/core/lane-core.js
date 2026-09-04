@@ -32,6 +32,13 @@ const TRANSLATE_VERB = /\b(translate|translation|translating|translated)\b|\bhow
 const LOOKUP = /\b(search|look)\s+(?:the\s+web|online|the\s+internet|it\s+up|this\s+up|that\s+up|for\s+me)\b|\bgoogle\s+(?:it|that|this|for)\b|\b(?:latest|current|today'?s|tonight'?s|this\s+week'?s|recent)\s+(?:\w+\s+){0,2}(?:news|headlines?|price|prices|score|scores|weather|forecast|results?|release|version|rate|rates|update|updates|stock|standings|exchange\s+rate)\b|\bnews\s+(?:about|on|from)\b|\bwhat'?s\s+(?:happening|going\s+on|new)\b|\b(?:right\s+now|as\s+of\s+(?:today|now|this\s+morning))\b|\bwho\s+won\s+the\b|\b(?:is|are|was|were)\s+.{0,25}\b(?:still|currently)\s+(?:open|available|running|down|up)\b|\bhow\s+much\s+(?:is|does).{0,25}\b(?:cost|trading|worth)\s+(?:now|today)\b/i;
 const CODE_VERB = /\b(fix|debug|refactor|optimi[sz]e|rewrite|profile|port|migrate|implement|write|convert|translate|review|explain)\b/i;
 const TOKEN = /[a-z']+/i;
+const FOREIGN = /[֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ฀-๿぀-ヿ㐀-鿿가-힯]/;
+const LATIN_LETTER = /[A-Za-z]/;
+const DENSE = /[぀-ヿ㐀-鿿가-힯฀-๿]/;
+const FOREIGN_ASK = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:מה|מהו|מהי|למה|מדוע|איך|כיצד|מתי|איפה|היכן|האם|כמה|מי|ما|ماذا|لماذا|كيف|متى|أين|هل|كم|что|почему|зачем|как|когда|где|кто|сколько|какой|що|чому|як|τι|γιατί|πώς|πότε|πού|ποιος|क्या|क्यों|कैसे|कब|कहाँ|कौन)(?![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])|(?:อะไร|ทำไม|อย่างไร|なぜ|なんで|どう|どこ|いつ|誰|什么|什麼|为什么|為什麼|怎么|怎麼|如何|哪里|哪裡|多少|왜|어떻게|무엇|언제|어디)/;
+const FOREIGN_WHY = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:למה|מדוע|הסבר|תסביר|שגיאה|באג|תקלה|لماذا|اشرح|خطأ|почему|зачем|объясни|ошибка|γιατί|σφάλμα|क्यों|समझाओ)(?![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])|(?:ทำไม|อธิบาย|なぜ|なんで|説明|エラー|为什么|為什麼|解释|解釋|错误|錯誤|报错|왜|설명|오류|에러)/;
+const FOREIGN_WRITE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:כתוב|תכתוב|סכם|תסכם|נסח|اكتب|لخص|مقال|напиши|составь|статья|γράψε|περίληψη|लिखो|सारांश)(?![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])|(?:เขียน|สรุป|書いて|作成|要約|まとめて|写|寫|撰写|总结|總結|摘要|써줘|작성|요약)/;
+const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|תרגום|ترجم|ترجمة|переведи|перевод|μετάφρασε|अनुवाद)(?![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])|(?:แปล|翻訳|訳して|翻译|翻譯|번역)/;
 
   const D = {
  "LANES": {
@@ -2130,6 +2137,47 @@ const TOKEN = /[a-z']+/i;
     return [null, ""];
   }
 
+  /* ── tier 0b: a script this vocabulary cannot read ────────────────────────
+     The tokenizer is [a-z']+, so Hebrew, Arabic, Cyrillic, Greek, Devanagari,
+     Thai, Kana, Han and Hangul all yield nothing. An empty feature vector
+     does not abstain - it lands on the sparsest centroid, which is trivial,
+     so a paragraph in any of them was being called a one-word lookup and
+     dropped. Read the shape instead. Mirrors lane/classify.py.             */
+  function countOf(re_, t) {
+    const m = String(t || "").match(new RegExp(re_.source, re_.flags.replace("g", "") + "g"));
+    return m ? m.length : 0;
+  }
+
+  function unreadable(text) {
+    return countOf(FOREIGN, text) > countOf(LATIN_LETTER, text);
+  }
+
+  /* Japanese and Chinese put no spaces in, so splitting on whitespace says
+     every sentence is one word long. Two characters to a word is rough, and
+     the right kind of rough: it only ever tells a lookup from a question. */
+  function foreignLength(text) {
+    const t = text || "";
+    const dense = countOf(DENSE, t);
+    const spaced = t.split(/\s+/).filter(Boolean).length;
+    return dense >= 4 ? Math.max(spaced, Math.floor((dense + 1) / 2)) : spaced;
+  }
+
+  function tierForeign(text) {
+    const t = text || "";
+    if (FOREIGN_TRANSLATE.test(t))
+      return ["translate", "this asks for a translation"];
+    if (FOREIGN_WRITE.test(t))
+      return ["longform", "this asks for something to be written"];
+    if (FOREIGN_WHY.test(t))
+      return ["reasoning", "this asks why, or says something is wrong"];
+
+    const n = foreignLength(t);
+    if (FOREIGN_ASK.test(t) || t.indexOf("?") !== -1 || t.indexOf("\uff1f") !== -1)
+      return [n < 5 ? "simple" : "general", "this is a question"];
+    if (n >= 6) return ["general", "this is a sentence, not a search term"];
+    return [null, ""];
+  }
+
   // ── the decision ───────────────────────────────────────────────────────────
   function classify(text, opts) {
     opts = opts || {};
@@ -2144,6 +2192,12 @@ const TOKEN = /[a-z']+/i;
 
     const [lane0, why0] = tier0(text);
     if (lane0) return done(lane0, why0, "0", 0);
+
+    // Before the vocabulary gets a vote, check that it can read the alphabet.
+    if (unreadable(text)) {
+      const [laneF, whyF] = tierForeign(text);
+      if (laneF) return done(laneF, whyF, "foreign", 0);
+    }
 
     const scored = rank(text || "");
     if (!scored.length) return done(D.DEFAULT_LANE, "no strong signal either way", "default", 0);
@@ -2398,7 +2452,8 @@ const TOKEN = /[a-z']+/i;
 
   train(D.TRAIN);
 
-  return { classify, advise, choose, rank, tier0, features, estimateTokens,
+  return { classify, advise, choose, rank, tier0, tierForeign, foreignLength,
+           features, estimateTokens,
            costFor, MODELS, LANES: D.LANES, DATA: D };
 })();
 

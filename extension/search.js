@@ -119,7 +119,12 @@
 
   // ── when to speak ──────────────────────────────────────────────────────────
   function worthOffering(q, verdict) {
-    const words = q.split(/\s+/).filter(Boolean).length;
+    /* Length, counted the way the classifier counts it.
+     *
+     * Japanese and Chinese put no spaces between words, so splitting on
+     * whitespace calls every sentence one word long and this gate rejected
+     * all of them - the lane was right and the card never appeared anyway. */
+    const words = LaneCore.foreignLength(q);
     if (words < 4) return false;                       // navigation
     if (/^\w+:\/\//.test(q)) return false;             // a URL
     if (/^[\w-]+\.(com|org|net|io|ai|co\.uk)\b/i.test(q)) return false;
@@ -327,7 +332,9 @@ ${LaneUI.css}
   <div class="rail">
     <kbd>Enter</kbd>
     <span class="k">still searches${engine ? " " + esc(engine) : ""}</span>
-    <button class="l-btn--link" id="never">Never on searches</button>
+    <button class="l-btn--link" id="never"
+            title="You can turn this back on from the LANE toolbar button"
+            >Never on searches</button>
   </div>
 </div>`;
 

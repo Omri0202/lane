@@ -101,6 +101,17 @@ def main() -> None:
         "whats the polish word for bread",
         "todays exchange rate for the shekel",
         "fix my sql join",
+        # The scripts the tokenizer throws away. Included in the sample set so
+        # the flattening check actually exercises the foreign patterns rather
+        # than agreeing that neither side matches any English.
+        "\u05dc\u05de\u05d4 \u05d4\u05e7\u05d5\u05d3 \u05e9\u05dc\u05d9 \u05d0\u05d9\u05d8\u05d9",
+        "\u05ea\u05e8\u05d2\u05dd \u05d0\u05ea \u05d6\u05d4",
+        "\u05db\u05ea\u05d5\u05d1 \u05dc\u05d9 \u05de\u05db\u05ea\u05d1",
+        "\u0644\u0645\u0627\u0630\u0627 \u0647\u0630\u0627 \u0628\u0637\u064a\u0621",
+        "\u043f\u043e\u0447\u0435\u043c\u0443 \u044d\u0442\u043e \u043c\u0435\u0434\u043b\u0435\u043d\u043d\u043e",
+        "\u4e3a\u4ec0\u4e48\u8fd9\u4e48\u6162",
+        "\u306a\u305c\u9045\u3044\u306e\u3067\u3059\u304b",
+        "\uc65c \ub290\ub9b0\uac00\uc694",
     ]
 
     regexes = [
@@ -114,6 +125,13 @@ def main() -> None:
         emit_regex("LOOKUP", classify._LOOKUP, samples),
         emit_regex("CODE_VERB", classify._CODE_VERB, samples),
         emit_regex("TOKEN", re.compile(classify._TOKEN.pattern, re.I), samples),
+        emit_regex("FOREIGN", classify._FOREIGN, samples),
+        emit_regex("LATIN_LETTER", classify._LATIN_LETTER, samples),
+        emit_regex("DENSE", classify._DENSE, samples),
+        emit_regex("FOREIGN_ASK", classify._FOREIGN_ASK, samples),
+        emit_regex("FOREIGN_WHY", classify._FOREIGN_WHY, samples),
+        emit_regex("FOREIGN_WRITE", classify._FOREIGN_WRITE, samples),
+        emit_regex("FOREIGN_TRANSLATE", classify._FOREIGN_TRANSLATE, samples),
     ]
 
     models = []

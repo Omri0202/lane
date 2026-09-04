@@ -207,3 +207,86 @@ def test_the_card_says_enter_still_searches():
     src = (EXT / "search.js").read_text(encoding="utf-8")
     assert "still searches" in src
     assert "<kbd>Enter</kbd>" in src
+
+
+# ── the world does not search in English ─────────────────────────────────────
+
+FOREIGN = [
+    # language, query, the lane it must land in
+    ("hebrew",   "למה הפונקציה "
+                 "הרקורסיבית "
+                 "שלי איטית", "reasoning"),
+    ("hebrew",   "תרגם את זה "
+                 "לאנגלית", "translate"),
+    ("hebrew",   "כתוב לי מכתב "
+                 "מוטיבציה", "longform"),
+    ("arabic",   "لماذا الدالة "
+                 "بطيئة جدا", "reasoning"),
+    ("russian",  "почему моя "
+                 "функция такая "
+                 "медленная", "reasoning"),
+    ("japanese", "再帰関数が遅いのは"
+                 "なぜですか", "reasoning"),
+    ("chinese",  "为什么我的递归函数"
+                 "这么慢", "reasoning"),
+    ("korean",   "왜 내 재귀 함수가 "
+                 "느린가요", "reasoning"),
+    ("greek",    "γιατί η συνάρτηση "
+                 "είναι αργή", "reasoning"),
+]
+
+
+@pytest.mark.parametrize("language,query,expected", FOREIGN,
+                         ids=[f"{a}-{c}" for a, _, c in FOREIGN])
+def test_it_is_not_silent_outside_the_latin_alphabet(language, query, expected):
+    """The tokenizer is [a-z']+, and an empty feature vector does not abstain.
+
+    It lands on the sparsest centroid, which is trivial, so every request in
+    Hebrew, Arabic, Cyrillic, Greek, Devanagari, Thai, Kana, Han or Hangul was
+    classified as a one-word lookup and the offer suppressed. Half the world
+    got a product that was silent by construction and looked merely broken.
+    """
+    from lane import classify as pyclassify
+    got = pyclassify.classify([{"role": "user", "content": query}])
+    assert got["lane"] == expected, (language, got["lane"], got["reason"])
+
+
+def test_a_short_foreign_lookup_still_says_nothing():
+    """The fix must not turn into a card on every keystroke in Hebrew.
+
+    Navigation and two-word lookups are the search engine's job in every
+    language, and an extension that interrupts all of them gets uninstalled in
+    a day.
+    """
+    from lane import classify as pyclassify
+    for query in ("יוטיוב",             # youtube
+                  "מזג אוויר"):  # weather
+        got = pyclassify.classify([{"role": "user", "content": query}])
+        assert got["lane"] in ("trivial", "simple", "web_search"), (query, got)
+
+
+def test_the_offer_gate_counts_words_the_way_the_brain_does():
+    """Japanese and Chinese put no spaces in.
+
+    Splitting on whitespace calls every sentence one word long, so the gate
+    rejected them all - the lane was right and the card never appeared anyway.
+    """
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    assert "LaneCore.foreignLength(q)" in src
+    assert r"q.split(/\s+/).filter(Boolean).length" not in src
+
+
+def test_turning_the_offer_off_can_be_undone():
+    """It wrote a flag nothing could clear.
+
+    One click - possibly a mis-click - and the search card was dead for good;
+    reinstalling would not fix it, because extension storage survives that,
+    and no screen mentioned the setting existed. A switch that only goes one
+    way is not a preference.
+    """
+    popup = ((EXT / "popup.html").read_text(encoding="utf-8")
+             + (EXT / "popup.js").read_text(encoding="utf-8"))
+    assert "lane.searchOffer" in popup, "the launcher cannot see the flag"
+    assert 'id="offers"' in popup
+    # And it must write the cleared value, not only the off one.
+    assert "on ? {} : { off: true }" in popup

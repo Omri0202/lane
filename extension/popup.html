@@ -69,6 +69,13 @@ textarea.l-field { min-height: 64px; resize: vertical; display: block; }
                border-radius: var(--l-r-md); background: var(--l-accent-soft);
                color: var(--l-accent); margin-bottom: var(--l-1); }
 .first .mark svg { width: 19px; height: 19px; }
+
+/* The one preference that used to be a one-way door: turning the search card
+   off wrote a flag nothing could clear. It lives here now, where somebody
+   who turned it off by accident can see that they did. */
+.foot { display: flex; align-items: center; gap: var(--l-2);
+        padding: 9px var(--l-3); border-top: 1px solid var(--l-line);
+        background: var(--l-panel); }
 </style>
 </head>
 <body>
@@ -85,6 +92,14 @@ textarea.l-field { min-height: 64px; resize: vertical; display: block; }
 </div>
 
 <div id="root"></div>
+
+<div class="foot" id="foot" hidden>
+  <span class="l-sub l-grow">Suggestions while you search</span>
+  <div class="l-seg" id="offers" role="group" aria-label="Offers on search engines">
+    <button data-on="1" aria-pressed="true">ON</button>
+    <button data-on="0" aria-pressed="false">OFF</button>
+  </div>
+</div>
 
 <script src="core/lane-core.js"></script>
 <script src="profile.js"></script>

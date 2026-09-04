@@ -263,6 +263,154 @@ def tier0(text: str) -> tuple[str | None, str]:
     return None, ""
 
 
+# ── tier 0b: a script this vocabulary cannot read ────────────────────────────
+
+#: Letters that _TOKEN ([a-z']+) throws away. Not an exhaustive list of the
+#: world's scripts - it is the ones with enough speakers that being silent in
+#: them is a product defect rather than a gap.
+_FOREIGN_RANGES = (
+    "\u0590-\u05ff"      # Hebrew
+    "\u0600-\u06ff"      # Arabic
+    "\u0370-\u03ff"      # Greek
+    "\u0400-\u04ff"      # Cyrillic
+    "\u0900-\u097f"      # Devanagari
+    "\u0e00-\u0e7f"      # Thai
+    "\u3040-\u30ff"      # Hiragana and katakana
+    "\u3400-\u9fff"      # Han
+    "\uac00-\ud7af"      # Hangul
+)
+_FOREIGN = re.compile(f"[{_FOREIGN_RANGES}]")
+_LATIN_LETTER = re.compile("[A-Za-z]")
+
+#: Scripts that do not put spaces between words, where counting spaces says
+#: everything is one word long.
+_DENSE = re.compile("[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\u0e00-\u0e7f]")
+
+#: Alphabetic scripts need a word boundary or "mah" matches inside "mahir".
+#: The scripts without spaces cannot have one, so they sit outside it.
+_FB = ("A-Za-z\u0590-\u05ff\u0600-\u06ff\u0370-\u03ff"
+       "\u0400-\u04ff\u0900-\u097f")
+
+
+def _bounded(spaced: str, dense: str) -> "re.Pattern":
+    """One pattern: bounded for scripts with spaces, bare for those without."""
+    return re.compile(f"(?<![{_FB}])(?:{spaced})(?![{_FB}])|(?:{dense})")
+
+
+#: Interrogatives. what / why / how / when / where / who / how much.
+_FOREIGN_ASK = _bounded(
+    # Hebrew
+    "\u05de\u05d4|\u05de\u05d4\u05d5|\u05de\u05d4\u05d9|"
+    "\u05dc\u05de\u05d4|\u05de\u05d3\u05d5\u05e2|\u05d0\u05d9\u05da|"
+    "\u05db\u05d9\u05e6\u05d3|\u05de\u05ea\u05d9|\u05d0\u05d9\u05e4\u05d4|"
+    "\u05d4\u05d9\u05db\u05df|\u05d4\u05d0\u05dd|\u05db\u05de\u05d4|\u05de\u05d9|"
+    # Arabic
+    "\u0645\u0627|\u0645\u0627\u0630\u0627|\u0644\u0645\u0627\u0630\u0627|"
+    "\u0643\u064a\u0641|\u0645\u062a\u0649|\u0623\u064a\u0646|\u0647\u0644|\u0643\u0645|"
+    # Cyrillic
+    "\u0447\u0442\u043e|\u043f\u043e\u0447\u0435\u043c\u0443|"
+    "\u0437\u0430\u0447\u0435\u043c|\u043a\u0430\u043a|\u043a\u043e\u0433\u0434\u0430|"
+    "\u0433\u0434\u0435|\u043a\u0442\u043e|\u0441\u043a\u043e\u043b\u044c\u043a\u043e|"
+    "\u043a\u0430\u043a\u043e\u0439|\u0449\u043e|\u0447\u043e\u043c\u0443|\u044f\u043a|"
+    # Greek
+    "\u03c4\u03b9|\u03b3\u03b9\u03b1\u03c4\u03af|\u03c0\u03ce\u03c2|"
+    "\u03c0\u03cc\u03c4\u03b5|\u03c0\u03bf\u03cd|\u03c0\u03bf\u03b9\u03bf\u03c2|"
+    # Devanagari
+    "\u0915\u094d\u092f\u093e|\u0915\u094d\u092f\u094b\u0902|"
+    "\u0915\u0948\u0938\u0947|\u0915\u092c|\u0915\u0939\u093e\u0901|\u0915\u094c\u0928",
+    # Thai, Japanese, Chinese, Korean - no spaces, so no boundary
+    "\u0e2d\u0e30\u0e44\u0e23|\u0e17\u0e33\u0e44\u0e21|\u0e2d\u0e22\u0e48\u0e32\u0e07\u0e44\u0e23|"
+    "\u306a\u305c|\u306a\u3093\u3067|\u3069\u3046|\u3069\u3053|\u3044\u3064|\u8ab0|"
+    "\u4ec0\u4e48|\u4ec0\u9ebc|\u4e3a\u4ec0\u4e48|\u70ba\u4ec0\u9ebc|"
+    "\u600e\u4e48|\u600e\u9ebc|\u5982\u4f55|\u54ea\u91cc|\u54ea\u88e1|\u591a\u5c11|"
+    "\uc65c|\uc5b4\ub5bb\uac8c|\ubb34\uc5c7|\uc5b8\uc81c|\uc5b4\ub514")
+
+#: why / explain / it is broken. The reasoning signal.
+_FOREIGN_WHY = _bounded(
+    "\u05dc\u05de\u05d4|\u05de\u05d3\u05d5\u05e2|\u05d4\u05e1\u05d1\u05e8|"
+    "\u05ea\u05e1\u05d1\u05d9\u05e8|\u05e9\u05d2\u05d9\u05d0\u05d4|"
+    "\u05d1\u05d0\u05d2|\u05ea\u05e7\u05dc\u05d4|"
+    "\u0644\u0645\u0627\u0630\u0627|\u0627\u0634\u0631\u062d|\u062e\u0637\u0623|"
+    "\u043f\u043e\u0447\u0435\u043c\u0443|\u0437\u0430\u0447\u0435\u043c|"
+    "\u043e\u0431\u044a\u044f\u0441\u043d\u0438|\u043e\u0448\u0438\u0431\u043a\u0430|"
+    "\u03b3\u03b9\u03b1\u03c4\u03af|\u03c3\u03c6\u03ac\u03bb\u03bc\u03b1|"
+    "\u0915\u094d\u092f\u094b\u0902|\u0938\u092e\u091d\u093e\u0913",
+    "\u0e17\u0e33\u0e44\u0e21|\u0e2d\u0e18\u0e34\u0e1a\u0e32\u0e22|"
+    "\u306a\u305c|\u306a\u3093\u3067|\u8aac\u660e|\u30a8\u30e9\u30fc|"
+    "\u4e3a\u4ec0\u4e48|\u70ba\u4ec0\u9ebc|\u89e3\u91ca|\u89e3\u91cb|"
+    "\u9519\u8bef|\u932f\u8aa4|\u62a5\u9519|"
+    "\uc65c|\uc124\uba85|\uc624\ub958|\uc5d0\ub7ec")
+
+#: write / summarise / draft. The long-form signal.
+_FOREIGN_WRITE = _bounded(
+    "\u05db\u05ea\u05d5\u05d1|\u05ea\u05db\u05ea\u05d5\u05d1|"
+    "\u05e1\u05db\u05dd|\u05ea\u05e1\u05db\u05dd|\u05e0\u05e1\u05d7|"
+    "\u0627\u0643\u062a\u0628|\u0644\u062e\u0635|\u0645\u0642\u0627\u0644|"
+    "\u043d\u0430\u043f\u0438\u0448\u0438|\u0441\u043e\u0441\u0442\u0430\u0432\u044c|"
+    "\u0441\u0442\u0430\u0442\u044c\u044f|"
+    "\u03b3\u03c1\u03ac\u03c8\u03b5|\u03c0\u03b5\u03c1\u03af\u03bb\u03b7\u03c8\u03b7|"
+    "\u0932\u093f\u0916\u094b|\u0938\u093e\u0930\u093e\u0902\u0936",
+    "\u0e40\u0e02\u0e35\u0e22\u0e19|\u0e2a\u0e23\u0e38\u0e1b|"
+    "\u66f8\u3044\u3066|\u4f5c\u6210|\u8981\u7d04|\u307e\u3068\u3081\u3066|"
+    "\u5199|\u5beb|\u64b0\u5199|\u603b\u7ed3|\u7e3d\u7d50|\u6458\u8981|"
+    "\uc368\uc918|\uc791\uc131|\uc694\uc57d")
+
+#: translate.
+_FOREIGN_TRANSLATE = _bounded(
+    "\u05ea\u05e8\u05d2\u05dd|\u05ea\u05e8\u05d2\u05d5\u05dd|"
+    "\u062a\u0631\u062c\u0645|\u062a\u0631\u062c\u0645\u0629|"
+    "\u043f\u0435\u0440\u0435\u0432\u0435\u0434\u0438|\u043f\u0435\u0440\u0435\u0432\u043e\u0434|"
+    "\u03bc\u03b5\u03c4\u03ac\u03c6\u03c1\u03b1\u03c3\u03b5|"
+    "\u0905\u0928\u0941\u0935\u093e\u0926",
+    "\u0e41\u0e1b\u0e25|\u7ffb\u8a33|\u8a33\u3057\u3066|"
+    "\u7ffb\u8bd1|\u7ffb\u8b6f|\ubc88\uc5ed")
+
+
+def _unreadable(text: str) -> bool:
+    """True when most of the letters here mean nothing to the tokenizer."""
+    t = text or ""
+    return len(_FOREIGN.findall(t)) > len(_LATIN_LETTER.findall(t))
+
+
+def foreign_length(text: str) -> int:
+    """Words, for scripts that may not separate them.
+
+    Japanese and Chinese put no spaces in, so splitting on whitespace says
+    every sentence is one word long and every length test fails. Two
+    characters to a word is rough and is the right kind of rough: it is used
+    only to tell a lookup from a question.
+    """
+    t = text or ""
+    dense = len(_DENSE.findall(t))
+    spaced = len([w for w in t.split() if w])
+    return max(spaced, (dense + 1) // 2) if dense >= 4 else spaced
+
+
+def tier_foreign(text: str) -> tuple[str | None, str]:
+    """Place a request written in a script the vocabulary cannot read.
+
+    By shape alone, and in the same order tier 0 uses: the most specific
+    intent first, then the ladder by length. Anything shorter than a sentence
+    falls through to the tiers below, which will call it trivial - and for two
+    words in any language, trivial is right.
+    """
+    t = text or ""
+    if _FOREIGN_TRANSLATE.search(t):
+        return Lane.TRANSLATE, "this asks for a translation"
+    if _FOREIGN_WRITE.search(t):
+        return Lane.LONGFORM, "this asks for something to be written"
+    if _FOREIGN_WHY.search(t):
+        return Lane.REASONING, "this asks why, or says something is wrong"
+
+    n = foreign_length(t)
+    if _FOREIGN_ASK.search(t) or "?" in t or "\uff1f" in t:
+        # Short questions are lookups in every language.
+        return (Lane.SIMPLE if n < 5 else Lane.GENERAL), "this is a question"
+    if n >= 6:
+        return Lane.GENERAL, "this is a sentence, not a search term"
+    return None, ""
+
+
 # ── tier 1: nearest-centroid over TF-IDF ─────────────────────────────────────
 
 _TOKEN = re.compile(r"[a-z']+")
@@ -499,6 +647,15 @@ def classify(messages: list[dict], tools: list | None = None,
     lane, reason = tier0(text)
     if lane:
         return done(lane, reason, "0")
+
+    # Before the vocabulary gets a vote, check that it can read the alphabet.
+    # It cannot, for most of the world, and an empty feature vector does not
+    # abstain - it lands on the sparsest centroid and calls a paragraph of
+    # Hebrew a one-word lookup.
+    if _unreadable(text):
+        lane, reason = tier_foreign(text)
+        if lane:
+            return done(lane, reason, "foreign")
 
     lane, margin, reason = tier1(text)
     if lane == Lane.TRANSLATE and not _is_translation(text):
