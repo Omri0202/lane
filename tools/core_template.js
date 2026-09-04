@@ -329,7 +329,17 @@ const LaneCore = (() => {
     const provider = SITE_PROVIDER[site];
     let here = MODELS.filter((m) => !provider || m.provider === provider);
     if (allowedIds && allowedIds.length) {
-      here = here.filter((m) => allowedIds.includes(m.id));
+      // The restriction applies only to the KIND it was expressed over.
+      //
+      // Somebody ticking boxes in the interview was shown chat models, so
+      // their list says which chat models they can pick and nothing at all
+      // about image generators. Treating it as a filter over everything made
+      // "create a picture" report that none of their sites could do it while
+      // listing one of their own sites as the place to go.
+      const kinds = new Set(MODELS.filter((m) => allowedIds.includes(m.id))
+                                  .map((m) => m.kind || "chat"));
+      here = here.filter((m) => !kinds.has(m.kind || "chat")
+                                || allowedIds.includes(m.id));
     }
 
     const out = {

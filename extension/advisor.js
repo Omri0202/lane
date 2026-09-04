@@ -160,6 +160,15 @@
   .useout.ok { color:var(--good); }
   .useout.bad { color:var(--alert); }
 
+  .favs { margin-top:9px; padding-top:9px; border-top:1px solid var(--line);
+          display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+  .favlabel { font-size:9.5px; color:var(--faint); letter-spacing:.07em;
+              text-transform:uppercase; }
+  .favs button { border:1px solid var(--line); background:var(--bg);
+                 color:var(--ink); border-radius:7px; padding:3px 9px;
+                 font:inherit; font-size:11px; cursor:pointer; }
+  .favs button:hover { border-color:var(--accent); }
+
   table { width:100%; margin-top:9px; border-collapse:collapse;
           font-size:11px; color:var(--dim); }
   td { padding:2px 0; }
@@ -409,6 +418,26 @@
     ]);
   }
 
+  /* Starred models, offered whatever the classifier decided.
+   *
+   * The advice is a recommendation, not a ruling. Somebody who always reaches
+   * for one model should be one click from it, and having to disagree with the
+   * panel by going around it is how a panel gets dismissed. */
+  function favouriteRow(recommendedId) {
+    if (!profile) return "";
+    const favs = LaneProfile.favourites(profile)
+      .filter((id) => id !== recommendedId)
+      .map((id) => LaneCore.MODELS.find((m) => m.id === id))
+      .filter(Boolean)
+      .slice(0, 3);
+    if (!favs.length) return "";
+    return `<div class="favs" id="favs">
+      <div class="favlabel">Yours</div>
+      ${favs.map((m) => `<button data-fav="${esc(m.id)}"
+        data-fav-name="${esc(m.display)}">${esc(m.display)}</button>`).join("")}
+    </div>`;
+  }
+
   function header(a) {
     const tokens = a.kind === "image"
       ? "priced per image"
@@ -475,6 +504,7 @@
           <div class="useout" id="useout"></div>
         </div>
         ${rows ? `<table>${rows}</table>` : ""}
+        ${favouriteRow(rec.id)}
         <div class="why">${esc(a.explain)}</div>
         ${a.assuming_all ? `<div class="setup">
            Assuming you can use every ${esc(SITE_NAME)} model.
@@ -482,6 +512,23 @@
            which ones you actually have</a> and this gets sharper.
          </div>` : ""}
       </div>`;
+
+    const favRow = root.getElementById("favs");
+    if (favRow) {
+      for (const b of favRow.querySelectorAll("[data-fav]")) {
+        b.addEventListener("click", async () => {
+          const name = b.dataset.favName;
+          const out = root.getElementById("useout");
+          out.className = "useout";
+          out.textContent = "switching\u2026";
+          const r = await applyModel(name);
+          out.className = "useout " + (r.ok ? "ok" : "bad");
+          out.textContent = r.ok
+            ? (r.already ? "already on " + name : "switched to " + name)
+            : r.why;
+        });
+      }
+    }
 
     const use = root.getElementById("use");
     if (use) use.addEventListener("click", async () => {
@@ -600,16 +647,33 @@
     refreshScore();
   }
 
-  /* Everything below is the optional half: a local LANE deepens the panel but
-   * is never needed for it to work. */
+  /* What this person told us, which is what makes the advice about them.
+   *
+   * The profile is the primary source and needs nothing running. A local LANE,
+   * if there is one, only fills in what the browser cannot know on its own -
+   * the running savings total, and a model selection made on its setup page by
+   * somebody who prefers that screen to the interview. */
   let allowedModels = null;
+  let profile = null;
+
+  async function loadProfile() {
+    try {
+      profile = await LaneProfile.load();
+      allowedModels = LaneProfile.allowed(profile);
+      if (profile.variation) setVariation(
+        profile.variation === "best" ? "best" : "save");
+    } catch (e) { profile = null; }
+  }
 
   async function loadLocalPreferences() {
     try {
       const r = await fetch(BASE + "/lane/setup-state", { cache: "no-store" });
       if (!r.ok) return;
       const state = await r.json();
-      if (state.explicit_selection) {
+      // Only defer to the server when the browser has nothing of its own; an
+      // answer somebody gave in the interview should not be overwritten by a
+      // setting on a machine they may have forgotten about.
+      if (state.explicit_selection && !allowedModels) {
         allowedModels = state.models.filter((m) => m.enabled).map((m) => m.id);
       }
       serverPresent = true;
@@ -640,5 +704,5 @@
 
   // Ask the local LANE about itself once, in the background. Whether it
   // answers changes only how much the panel can show, never whether it works.
-  loadLocalPreferences().then(refreshScore);
+  loadProfile().then(loadLocalPreferences).then(refreshScore);
 })();

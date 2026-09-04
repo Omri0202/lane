@@ -1194,6 +1194,24 @@ async def chat_page():
     return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
+@app.get("/dev/ext/{path:path}")
+async def dev_extension(path: str):
+    """Serve the extension's own files, so its pages can be opened and driven
+    in a browser without side-loading it into Chrome for every change."""
+    base = (config.PKG.parent / "extension").resolve()
+    target = (base / path).resolve()
+    if base not in target.parents and target != base:
+        return Response("no", status_code=403)      # no climbing out
+    if not target.is_file():
+        return Response("not found", status_code=404)
+    kind = ("text/html" if target.suffix == ".html"
+            else "application/javascript" if target.suffix == ".js"
+            else "application/json" if target.suffix == ".json"
+            else "text/plain")
+    return Response(target.read_text(encoding="utf-8"), media_type=kind,
+                    headers={"Cache-Control": "no-store"})
+
+
 @app.get("/dev/core.js")
 async def dev_core():
     """The generated browser brain, served for the parity page."""

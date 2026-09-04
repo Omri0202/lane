@@ -330,6 +330,46 @@ Everywhere else it recommends only models **that site can actually give you** �
 advising Gemini Flash to somebody sitting in claude.ai is not a saving, it is a
 chore.
 
+### Five questions, once
+
+Installing opens a short interview: which sites you use, which models your plan
+actually gives you, which ones you reach for, what you mostly do, and whether
+you would rather save money or get the best answer. Every question is skippable
+and all of it is changeable later.
+
+That is what turns "use Sonnet 5" into advice about **you**. Somebody on a plan
+without Opus should never be told to use Opus, and somebody who never opens
+ChatGPT should never be pointed at it.
+
+Nothing leaves the browser. No account, no sync, and **no API key** — keys are
+only for the optional local proxy.
+
+### The launcher
+
+Click the toolbar icon before you have opened anything:
+
+```
+  What do you want to do?
+  [ why does my recursive fibonacci take so long   ]
+
+  debug this error   write a function that   summarise this
+
+  REASONING                          on ChatGPT
+  GPT-5                                   $0.012
+  [   Open ChatGPT   ] [  Copy prompt  ]
+
+  YOUR FAVOURITES
+  [ GPT-5 ] [ Claude Opus 4.8 ]
+```
+
+It picks across **the sites you said you use**, and opens the right one. Ask for
+a picture with only Claude selected and it names which of your sites can do it
+instead. The shortcuts are ordered by what you said you mostly do.
+
+Starred models also appear under every panel suggestion as one-click switches —
+the advice is a recommendation, not a ruling, and having to go around the panel
+to disagree with it is how a panel gets dismissed.
+
 ### Installing it
 
 **No Python. No server. No terminal.**

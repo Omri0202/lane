@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L.A.N.E. — set up</title>
+<style>
+/* Five questions, one screen each, and a Skip on every one. An interview that
+   feels like a form is one people abandon halfway, and a half-configured tool
+   is worse than an unconfigured one because it gives confident wrong advice. */
+:root {
+  --bg:#fff; --panel:#f6f7f9; --line:#e3e6ea; --ink:#14171a;
+  --dim:#6b7480; --faint:#99a1ac; --good:#1a8a5a;
+  --accent:#3b6df5; --accent-ink:#fff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#101215; --panel:#171a1f; --line:#262b33; --ink:#e8eaed;
+          --dim:#9aa3ae; --faint:#6d7681; --good:#4ec98a;
+          --accent:#5b87ff; --accent-ink:#0b0d10; }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+       font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,sans-serif;
+       min-height:100vh; display:flex; flex-direction:column; }
+
+header { padding:22px 24px 0; }
+.brand { font-size:11px; font-weight:700; letter-spacing:.13em;
+         color:var(--faint); }
+.dots { display:flex; gap:5px; margin-top:14px; }
+.dots i { width:22px; height:3px; border-radius:2px; background:var(--line); }
+.dots i.on { background:var(--accent); }
+
+main { flex:1; display:flex; align-items:flex-start; justify-content:center;
+       padding:34px 24px 24px; }
+.card { width:min(620px,100%); }
+h1 { font-size:23px; line-height:1.3; margin:0 0 6px; font-weight:650; }
+.sub { color:var(--dim); font-size:14px; margin:0 0 22px; }
+
+.opts { display:flex; flex-direction:column; gap:9px; }
+.opt { display:flex; align-items:flex-start; gap:11px; padding:13px 15px;
+       border:1px solid var(--line); border-radius:12px; cursor:pointer;
+       background:var(--bg); }
+.opt:hover { border-color:var(--accent); }
+.opt.on { border-color:var(--accent);
+          box-shadow:inset 0 0 0 1px var(--accent); }
+.opt input { margin:3px 0 0; accent-color:var(--accent); flex:none; }
+.opt .t { font-weight:600; font-size:14.5px; }
+.opt .d { color:var(--dim); font-size:13px; margin-top:1px; }
+.opt .p { margin-left:auto; color:var(--faint); font-size:12.5px;
+          white-space:nowrap; font-variant-numeric:tabular-nums; }
+
+.group { margin-top:20px; }
+.group h2 { font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+            color:var(--faint); margin:0 0 9px; font-weight:700; }
+
+.star { margin-left:auto; border:0; background:transparent; cursor:pointer;
+        font-size:16px; line-height:1; color:var(--faint); padding:0 2px; }
+.star.on { color:#e8b44a; }
+
+footer { position:sticky; bottom:0; background:linear-gradient(transparent,var(--bg) 28%);
+         padding:18px 24px 26px; }
+.bar { width:min(620px,100%); margin:0 auto; display:flex; gap:10px;
+       align-items:center; }
+button.primary { background:var(--accent); color:var(--accent-ink); border:0;
+                 border-radius:10px; padding:11px 22px; font:inherit;
+                 font-weight:650; cursor:pointer; }
+button.ghost { background:transparent; color:var(--dim); border:1px solid var(--line);
+               border-radius:10px; padding:11px 16px; font:inherit; cursor:pointer; }
+button.link { background:none; border:0; color:var(--dim); font:inherit;
+              font-size:13.5px; cursor:pointer; text-decoration:underline; }
+.grow { flex:1; }
+.note { color:var(--faint); font-size:12.5px; margin-top:12px; }
+code { background:var(--panel); padding:1px 6px; border-radius:5px; font-size:12.5px; }
+.done { text-align:center; padding:40px 0; }
+.done h1 { font-size:26px; }
+.tick { font-size:40px; color:var(--good); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">L.A.N.E.</div>
+  <div class="dots" id="dots"></div>
+</header>
+
+<main><div class="card" id="card"></div></main>
+
+<footer><div class="bar">
+  <button class="ghost" id="back">Back</button>
+  <button class="primary" id="next">Continue</button>
+  <span class="grow"></span>
+  <button class="link" id="skip">Skip this</button>
+</div></footer>
+
+<script src="core/lane-core.js"></script>
+<script src="profile.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s == null ? "" : s)
+  .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+const SITES = [
+  { id:"claude",  provider:"anthropic", name:"Claude",  d:"claude.ai" },
+  { id:"chatgpt", provider:"openai",    name:"ChatGPT", d:"chatgpt.com" },
+  { id:"gemini",  provider:"google",    name:"Gemini",  d:"gemini.google.com" },
+];
+
+const FOCUS = [
+  { id:"code",     t:"Code",            d:"debugging, writing functions, reviewing" },
+  { id:"writing",  t:"Writing",         d:"drafting, editing, summarising" },
+  { id:"research", t:"Looking things up", d:"questions, explanations, current information" },
+  { id:"images",   t:"Images",          d:"making pictures, or reading them" },
+];
+
+let profile = null;
+let step = 0;
+
+const money = (n) => n < 0.01 ? "$" + n.toFixed(4) : "$" + n.toFixed(2);
+
+// ── the questions ────────────────────────────────────────────────────────────
+const steps = [
+  {
+    title: "Which of these do you actually use?",
+    sub: "The panel only appears on sites you pick, and only ever suggests models those sites can give you.",
+    render() {
+      return `<div class="opts">${SITES.map((s) => `
+        <label class="opt ${profile.sites.includes(s.id) ? "on" : ""}">
+          <input type="checkbox" data-site="${s.id}" ${profile.sites.includes(s.id) ? "checked" : ""}>
+          <span><span class="t">${s.name}</span><span class="d">${s.d}</span></span>
+        </label>`).join("")}</div>
+        <div class="note">You can change any of this later from the panel.</div>`;
+    },
+    read() {
+      profile.sites = [...document.querySelectorAll("[data-site]")]
+        .filter((c) => c.checked).map((c) => c.dataset.site);
+      if (!profile.sites.length) profile.sites = SITES.map((s) => s.id);
+    },
+  },
+  {
+    title: "Which models can you pick?",
+    sub: "Untick anything your plan does not give you. Being told to use a model you cannot reach is not advice, it is a chore.",
+    render() {
+      const wanted = new Set(profile.sites.map(
+        (id) => (SITES.find((s) => s.id === id) || {}).provider));
+      const chosen = new Set(profile.models);
+      const known = profile.models.length > 0;
+      const groups = SITES.filter((s) => wanted.has(s.provider)).map((s) => {
+        const models = LaneCore.MODELS
+          .filter((m) => m.provider === s.provider && m.kind === "chat")
+          .sort((a, b) => b.tier - a.tier);
+        if (!models.length) return "";
+        return `<div class="group"><h2>${s.name}</h2><div class="opts">${
+          models.map((m) => `
+            <label class="opt ${!known || chosen.has(m.id) ? "on" : ""}">
+              <input type="checkbox" data-model="${esc(m.id)}"
+                     ${!known || chosen.has(m.id) ? "checked" : ""}>
+              <span><span class="t">${esc(m.display)}</span>
+                    <span class="d">${esc(m.strengths.join(" · ") || "general")}</span></span>
+              <span class="p">${money(m.in_price)} / ${money(m.out_price)} per Mtok</span>
+            </label>`).join("")}</div></div>`;
+      }).join("");
+      return groups || `<div class="note">Nothing to choose — go back and pick a site.</div>`;
+    },
+    read() {
+      const boxes = [...document.querySelectorAll("[data-model]")];
+      const on = boxes.filter((c) => c.checked).map((c) => c.dataset.model);
+      // Everything ticked means "no restriction", not a list that goes stale
+      // the next time a model is added.
+      profile.models = on.length === boxes.length ? [] : on;
+    },
+  },
+  {
+    title: "Star the ones you reach for.",
+    sub: "Favourites get offered as one-click switches, whatever the classifier thinks. Optional — skip if you have no strong feelings.",
+    render() {
+      const permitted = LaneProfile.allowed(profile);
+      const models = LaneCore.MODELS
+        .filter((m) => m.kind === "chat" && (!permitted || permitted.includes(m.id)))
+        .sort((a, b) => b.tier - a.tier);
+      return `<div class="opts">${models.map((m) => `
+        <div class="opt">
+          <span><span class="t">${esc(m.display)}</span>
+                <span class="d">${esc(m.provider)} · ${esc(m.strengths.join(" · ") || "general")}</span></span>
+          <button class="star ${profile.favourites.includes(m.id) ? "on" : ""}"
+                  data-fav="${esc(m.id)}" title="Favourite">★</button>
+        </div>`).join("")}</div>`;
+    },
+    wire() {
+      for (const b of document.querySelectorAll("[data-fav]")) {
+        b.addEventListener("click", () => {
+          const id = b.dataset.fav;
+          const i = profile.favourites.indexOf(id);
+          if (i === -1) profile.favourites.push(id);
+          else profile.favourites.splice(i, 1);
+          b.classList.toggle("on", i === -1);
+        });
+      }
+    },
+    read() {},
+  },
+  {
+    title: "What do you mostly do?",
+    sub: "Used to order the shortcuts in the launcher. It never overrides what you actually type — the request in front of it always wins.",
+    render() {
+      return `<div class="opts">${FOCUS.map((f) => `
+        <label class="opt ${profile.focus.includes(f.id) ? "on" : ""}">
+          <input type="checkbox" data-focus="${f.id}" ${profile.focus.includes(f.id) ? "checked" : ""}>
+          <span><span class="t">${f.t}</span><span class="d">${f.d}</span></span>
+        </label>`).join("")}</div>`;
+    },
+    read() {
+      profile.focus = [...document.querySelectorAll("[data-focus]")]
+        .filter((c) => c.checked).map((c) => c.dataset.focus);
+    },
+  },
+  {
+    title: "By default, cheap or best?",
+    sub: "You can flip this on any message with the toggle in the panel.",
+    render() {
+      const opt = (id, t, d) => `
+        <label class="opt ${profile.variation === id ? "on" : ""}">
+          <input type="radio" name="v" data-var="${id}" ${profile.variation === id ? "checked" : ""}>
+          <span><span class="t">${t}</span><span class="d">${d}</span></span>
+        </label>`;
+      return `<div class="opts">
+        ${opt("save","Save money","The cheapest model that still does the job properly.")}
+        ${opt("best","Best answer","The model whose strengths fit the request. Not always the priciest.")}
+      </div>
+      <div class="note">
+        Everything runs in your browser. No account, nothing sent anywhere, and
+        no API key needed for any of this — keys are only for the optional local
+        proxy that calls models <i>for</i> you. <code>lane serve</code> if you
+        want that later.
+      </div>`;
+    },
+    read() {
+      const on = document.querySelector("[data-var]:checked");
+      profile.variation = on ? on.dataset.var : "save";
+    },
+  },
+];
+
+// ── the shell ────────────────────────────────────────────────────────────────
+function draw() {
+  $("dots").innerHTML = steps.map((_, i) =>
+    `<i class="${i <= step ? "on" : ""}"></i>`).join("");
+
+  if (step >= steps.length) return finish();
+
+  const s = steps[step];
+  $("card").innerHTML = `<h1>${s.title}</h1><p class="sub">${s.sub}</p>${s.render()}`;
+  if (s.wire) s.wire();
+
+  for (const el of document.querySelectorAll(".opt input")) {
+    el.addEventListener("change", () => {
+      if (el.type === "radio") {
+        for (const o of document.querySelectorAll(".opt")) o.classList.remove("on");
+      }
+      el.closest(".opt").classList.toggle("on", el.checked);
+    });
+  }
+
+  $("back").style.visibility = step === 0 ? "hidden" : "visible";
+  $("next").textContent = step === steps.length - 1 ? "Finish" : "Continue";
+}
+
+async function finish() {
+  profile.onboarded = true;
+  await LaneProfile.save(profile);
+  const permitted = LaneProfile.allowed(profile);
+  const count = permitted ? permitted.length : LaneCore.MODELS.length;
+  $("card").innerHTML = `
+    <div class="done">
+      <div class="tick">✓</div>
+      <h1>Ready.</h1>
+      <p class="sub">
+        Open ${profile.sites.map((id) =>
+          (SITES.find((s) => s.id === id) || {}).name).join(", ")} and start
+        typing — the panel appears in the corner once you are a few words in.
+      </p>
+      <p class="note">
+        Advising across ${count} model${count === 1 ? "" : "s"},
+        ${LaneProfile.favourites(profile).length} starred,
+        defaulting to ${profile.variation === "best" ? "the best fit" : "the cheapest that fits"}.
+      </p>
+    </div>`;
+  $("back").style.visibility = "hidden";
+  $("next").textContent = "Close";
+  $("skip").style.visibility = "hidden";
+  $("next").onclick = () => window.close();
+}
+
+$("next").addEventListener("click", () => {
+  if (step < steps.length) { steps[step].read(); step++; draw(); }
+});
+$("back").addEventListener("click", () => { if (step > 0) { step--; draw(); } });
+$("skip").addEventListener("click", () => { step++; draw(); });
+
+LaneProfile.load().then((p) => { profile = p; draw(); });
+</script>
+</body>
+</html>

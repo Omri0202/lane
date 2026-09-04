@@ -16,6 +16,7 @@
       ],
       "js": [
         "core/lane-core.js",
+        "profile.js",
         "advisor.js"
       ],
       "run_at": "document_idle"
@@ -25,5 +26,13 @@
   "optional_host_permissions": [
     "http://127.0.0.1:8080/*",
     "http://localhost:8080/*"
-  ]
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "L.A.N.E. - what do you want to do?"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "onboarding.html"
 }
