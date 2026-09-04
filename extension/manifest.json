@@ -20,7 +20,7 @@
         "profile.js",
         "advisor.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     },
     {
       "matches": [
@@ -37,7 +37,7 @@
         "profile.js",
         "search.js"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "icons": {

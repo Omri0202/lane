@@ -160,8 +160,14 @@ def test_ticking_everything_stores_no_restriction():
 def test_the_interview_does_not_demand_api_keys():
     """Keys are for the optional proxy. Asking for one before somebody has
     seen a single suggestion is the barrier this whole layer removes."""
-    html = read("onboarding.html")
-    assert "no API key needed" in html
+    # Collapsed, because whether a promise falls across a line break in the
+    # source is not something a test should have an opinion about.
+    html = re.sub(r"\s+", " ", read("onboarding.html"))
+    assert "no API key" in html
+    # And no command either: the last screen used to end by naming one, which
+    # reads as a catch however carefully it is hedged.
+    assert "lane serve" not in html
+    assert "no server" in html
 
 
 # ── the launcher ─────────────────────────────────────────────────────────────

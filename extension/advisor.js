@@ -118,6 +118,10 @@ ${LaneUI.css}
 .alts td.m { width: 82px; padding-right: 6px; }
 .alts td.n { padding-right: 4px; }
 .alts tr.on td { color: var(--l-ink); font-weight: 600; }
+/* The same green and amber as the rows in the search card, so SAVE and
+   PERFORMANCE mean one thing across every surface. */
+.alts tr[data-mode="save"] td.m       { color: var(--l-save); }
+.alts tr[data-mode="performance"] td.m { color: var(--l-best); }
 
 .favs { margin-top: var(--l-3); padding-top: var(--l-3);
         border-top: 1px solid var(--l-line);
@@ -408,7 +412,7 @@ ${LaneUI.css}
   function renderAdvice(a) {
     const rec = a.recommend || {};
     const rows = (a.options || []).map((o) => `
-      <tr class="${o.id === rec.id ? "on" : ""}">
+      <tr class="${o.id === rec.id ? "on" : ""}" data-mode="${esc(o.mode)}">
         <td class="m l-label" style="font-size:9px">${esc(o.mode)}</td>
         <td>${esc(o.display)}</td>
         <td class="l-num" style="text-align:right;white-space:nowrap">${money(o.cost)}</td>
@@ -515,34 +519,67 @@ ${LaneUI.css}
     show();
   }
 
-  function renderOffline() {
-    content.innerHTML = `
-      <div class="l-pad l-sub">
-        LANE is not running. Start it with <code>lane serve</code> and this
-        panel will pick up on its own.<br><br>
-        First time? Open <a href="${BASE}/setup" target="_blank"
-        rel="noreferrer">${BASE.replace(/^https?:\/\//, "")}/setup</a> to say
-        which models you can actually use.
-      </div>`;
-    show();
-  }
-
   /* The scoreboard. Deliberately says "could have saved": LANE cannot see
      which model you actually picked, and a tool that counts its own advice as
      though it were always taken is flattering itself with the very number it
      is selling on. */
   let serverPresent = false;
 
+  /* Kept in the browser, so the number is there on a machine that has never
+     run `lane serve` - which is every machine, for anybody who installed this
+     from the store and quite reasonably expects an extension to be an
+     extension. The local proxy, when it is running, is the more accurate
+     source and takes over. */
+  const LEDGER_KEY = "lane.ledger";
+  let ledger = { messages: 0, saved: 0 };
+
+  function readLedger() {
+    return new Promise((resolve) => {
+      try {
+        if (typeof chrome !== "undefined" && chrome.storage) {
+          chrome.storage.local.get(LEDGER_KEY, (v) =>
+            resolve((v || {})[LEDGER_KEY] || { messages: 0, saved: 0 }));
+          return;
+        }
+        resolve(JSON.parse(localStorage.getItem(LEDGER_KEY) || "null")
+                || { messages: 0, saved: 0 });
+      } catch (e) { resolve({ messages: 0, saved: 0 }); }
+    });
+  }
+
+  function writeLedger(v) {
+    try {
+      if (typeof chrome !== "undefined" && chrome.storage) {
+        chrome.storage.local.set({ [LEDGER_KEY]: v });
+        return;
+      }
+      localStorage.setItem(LEDGER_KEY, JSON.stringify(v));
+    } catch (e) { /* a counter that will not stick is not an error */ }
+  }
+
+  function countLocally(a) {
+    ledger = {
+      messages: ledger.messages + 1,
+      saved: ledger.saved + Math.max(0, (a.top.cost || 0) - (a.recommend.cost || 0)),
+    };
+    writeLedger(ledger);
+    renderScore(ledger.messages, ledger.saved);
+  }
+
+  function renderScore(messages, saved) {
+    if (!messages) { scoreEl.style.display = "none"; return; }
+    scoreEl.style.display = "flex";
+    scoreEl.innerHTML =
+      `could have saved <b>${money(saved)}</b>` +
+      `<span class="n">${messages} message${messages === 1 ? "" : "s"}</span>`;
+  }
+
   async function refreshScore() {
-    if (!serverPresent) { scoreEl.style.display = "none"; return; }
+    if (!serverPresent) { renderScore(ledger.messages, ledger.saved); return; }
     try {
       const s = await (await fetch(BASE + "/lane/advice-stats")).json();
-      if (!s.messages) { scoreEl.style.display = "none"; return; }
-      scoreEl.style.display = "flex";
-      scoreEl.innerHTML =
-        `could have saved <b>${money(s.potential_saving)}</b>` +
-        `<span class="n">${s.messages} message${s.messages === 1 ? "" : "s"}</span>`;
-    } catch { scoreEl.style.display = "none"; }
+      renderScore(s.messages, s.potential_saving);
+    } catch { renderScore(ledger.messages, ledger.saved); }
   }
 
   // ── reading the composer ─────────────────────────────────────────────────
@@ -647,6 +684,7 @@ ${LaneUI.css}
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" || e.shiftKey || !isComposer(e.target)) return;
     const a = last;
+    if (a && !a.unavailable_here && a.recommend && a.top) countLocally(a);
     if (serverPresent && a && !a.unavailable_here && a.recommend && a.top) {
       fetch(BASE + "/lane/advice-log", {
         method: "POST",
@@ -662,5 +700,13 @@ ${LaneUI.css}
 
   // Ask the local LANE about itself once, in the background. Whether it
   // answers changes only how much the panel can show, never whether it works.
-  loadProfile().then(loadLocalPreferences).then(refreshScore);
+  /* The panel is complete before any of this resolves. Everything below only
+     makes it know more: who this person is, then - if and only if something
+     is listening on this machine - what it has recorded. Nothing here is a
+     precondition, which is why there is no command to run. */
+  readLedger()
+    .then((v) => { ledger = v; renderScore(v.messages, v.saved); })
+    .then(loadProfile)
+    .then(loadLocalPreferences)
+    .then(refreshScore);
 })();

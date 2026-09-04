@@ -32,34 +32,52 @@ const LaneUI = (() => {
 
   const css = `
 :host, :root {
-  /* Neutral ramp. Light by default, redefined once for dark, never per-file. */
+  /* Neutrals with a trace of the accent in them, so the greys belong to the
+     violet rather than sitting next to it. Pure blue-grey against a warm
+     accent is the tell of a palette assembled from two sources. */
   --l-bg:      #ffffff;
-  --l-panel:   #f7f8fa;
-  --l-sunk:    #f0f2f5;
-  --l-line:    #e4e7ec;
-  --l-line-2:  #d3d8e0;
-  --l-ink:     #14171a;
-  --l-dim:     #616a75;
-  --l-faint:   #98a1ad;
+  --l-panel:   #f8f7fc;
+  --l-sunk:    #f2f1f8;
+  --l-line:    #e7e5f0;
+  --l-line-2:  #d6d3e4;
+  --l-ink:     #16141f;
+  --l-dim:     #5f5a72;
+  --l-faint:   #948eaa;
 
-  /* One accent, for the action you are meant to take. */
-  --l-accent:      #3455f0;
+  /* One accent, for the single thing you are meant to click. Electric violet
+     rather than another product blue - it has to survive being 318px wide in
+     the corner of somebody else's page and still look deliberate. */
+  --l-accent:      #6d3bee;
+  --l-accent-2:    #4f2fd9;
   --l-accent-ink:  #ffffff;
-  --l-accent-soft: #3455f014;
+  --l-accent-soft: #6d3bee14;
+  --l-accent-line: #6d3bee38;
 
-  --l-good:  #12805c;
-  --l-warn:  #9a6700;
-  --l-alert: #c0362c;
+  /* Meaning, not decoration. A recommendation is either the cheapest thing
+     that will do the job or the one that fits it best, and those are two
+     different kinds of answer, so they get two colours and keep them on every
+     surface. */
+  --l-save:      #0b8f68;
+  --l-save-soft: #0b8f6814;
+  --l-best:      #b06a08;
+  --l-best-soft: #b06a0814;
+
+  --l-good:  #0b8f68;
+  --l-warn:  #b06a08;
+  --l-alert: #c33553;
 
   /* 4px scale. */
   --l-1: 4px;  --l-2: 8px;  --l-3: 12px;
   --l-4: 16px; --l-5: 24px; --l-6: 32px;
 
-  --l-r-sm: 8px; --l-r-md: 11px; --l-r-lg: 15px;
+  --l-r-sm: 9px; --l-r-md: 12px; --l-r-lg: 16px;
 
-  --l-shadow: 0 12px 32px -8px rgba(16,24,40,.18),
-              0 2px 6px -1px rgba(16,24,40,.08),
-              0 0 0 1px rgba(16,24,40,.05);
+  /* One elevation, tinted with the accent rather than neutral black: a violet
+     shadow under a violet-tinted card is what stops it reading as a grey box
+     somebody pasted on. */
+  --l-shadow: 0 16px 44px -12px rgba(45, 27, 105, .26),
+              0 4px 10px -3px rgba(45, 27, 105, .10),
+              0 0 0 1px rgba(45, 27, 105, .07);
 
   --l-font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI",
             Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -68,26 +86,34 @@ const LaneUI = (() => {
 
 @media (prefers-color-scheme: dark) {
   :host, :root {
-    --l-bg:      #16181d;
-    --l-panel:   #1d2027;
-    --l-sunk:    #22262e;
-    --l-line:    #2a2f38;
-    --l-line-2:  #39404b;
-    --l-ink:     #e9ebef;
-    --l-dim:     #9aa3af;
-    --l-faint:   #6b7480;
+    /* Deep ink with the same violet cast, not neutral charcoal. */
+    --l-bg:      #15131c;
+    --l-panel:   #1c1a26;
+    --l-sunk:    #232030;
+    --l-line:    #2e2a3d;
+    --l-line-2:  #3f3a53;
+    --l-ink:     #eceaf4;
+    --l-dim:     #a29bba;
+    --l-faint:   #726c88;
 
-    --l-accent:      #6d8bff;
-    --l-accent-ink:  #0d1016;
-    --l-accent-soft: #6d8bff1f;
+    --l-accent:      #9d7bff;
+    --l-accent-2:    #7c5bf0;
+    --l-accent-ink:  #150f28;
+    --l-accent-soft: #9d7bff1f;
+    --l-accent-line: #9d7bff4d;
 
-    --l-good:  #46c88f;
-    --l-warn:  #e0b050;
-    --l-alert: #ff7b6b;
+    --l-save:      #34d9a0;
+    --l-save-soft: #34d9a01f;
+    --l-best:      #f5b544;
+    --l-best-soft: #f5b5441f;
 
-    --l-shadow: 0 14px 40px -10px rgba(0,0,0,.6),
-                0 2px 8px -2px rgba(0,0,0,.4),
-                0 0 0 1px rgba(255,255,255,.06);
+    --l-good:  #34d9a0;
+    --l-warn:  #f5b544;
+    --l-alert: #ff7a90;
+
+    --l-shadow: 0 18px 48px -12px rgba(0, 0, 0, .72),
+                0 4px 12px -3px rgba(0, 0, 0, .5),
+                0 0 0 1px rgba(157, 123, 255, .12);
   }
 }
 
@@ -146,7 +172,7 @@ const LaneUI = (() => {
 .l-head {
   display: flex; align-items: center; gap: var(--l-2);
   padding: 10px var(--l-3);
-  background: var(--l-panel);
+  background: linear-gradient(180deg, var(--l-panel), var(--l-bg));
   border-bottom: 1px solid var(--l-line);
 }
 .l-brand {
@@ -177,11 +203,16 @@ const LaneUI = (() => {
   outline: 2px solid var(--l-accent); outline-offset: 2px;
 }
 
+/* The one place a gradient earns its keep: it is the only element on any
+   surface that has one, so it reads as "this is the button" without needing
+   to be any bigger. */
 .l-btn--primary {
-  background: var(--l-accent); color: var(--l-accent-ink);
-  border-color: transparent; font-weight: 620;
+  background: linear-gradient(180deg, var(--l-accent), var(--l-accent-2));
+  color: var(--l-accent-ink); border-color: transparent; font-weight: 620;
+  box-shadow: 0 2px 8px -2px var(--l-accent-line);
 }
-.l-btn--primary:hover { background: var(--l-accent); filter: brightness(1.08); }
+.l-btn--primary:hover { filter: brightness(1.09); }
+.l-btn--primary:active { filter: brightness(.96); }
 
 .l-btn--quiet {
   border-color: transparent; background: transparent; color: var(--l-dim);
@@ -252,6 +283,22 @@ const LaneUI = (() => {
 .l-row:hover .l-row__go { color: var(--l-accent); transform: translateX(2px); }
 .l-row + .l-row { margin-top: 6px; }
 .l-row__tag  { width: 54px; flex: none; }
+
+/* Cheapest is green, best-fit is amber, and the row carries a sliver of it
+   down its left edge so the two are told apart before either is read. */
+/* An inset shadow rather than a left border: a border sits outside the
+   corner radius and leaves a curved sliver at each end, and it shifts the
+   content across by its own width. This follows the corner and costs no
+   layout. */
+.l-row--save { box-shadow: inset 3px 0 0 var(--l-save); }
+.l-row--save .l-row__tag { color: var(--l-save); }
+.l-row--save:hover { border-color: var(--l-save); background: var(--l-save-soft); }
+.l-row--save:hover .l-row__go { color: var(--l-save); }
+
+.l-row--best { box-shadow: inset 3px 0 0 var(--l-best); }
+.l-row--best .l-row__tag { color: var(--l-best); }
+.l-row--best:hover { border-color: var(--l-best); background: var(--l-best-soft); }
+.l-row--best:hover .l-row__go { color: var(--l-best); }
 .l-row__main { flex: 1 1 auto; min-width: 0; }
 .l-row__name { font-size: 13px; font-weight: 620; display: block;
                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -268,26 +315,28 @@ const LaneUI = (() => {
   font-size: 10px; font-weight: 700; letter-spacing: .05em;
   text-transform: uppercase;
 }
-.l-pill--trivial    { background: #8a919b1f; color: var(--l-dim); }
-.l-pill--simple     { background: #0d94881f; color: #0b7c72; }
-.l-pill--general    { background: #3455f01f; color: #2c47cc; }
-.l-pill--longform   { background: #b4780a1f; color: #9a6700; }
-.l-pill--reasoning  { background: #7c4ddd1f; color: #6a3fc4; }
-.l-pill--vision     { background: #0891b21f; color: #0a7d99; }
-.l-pill--tools      { background: #15954c1f; color: #12804a; }
-.l-pill--translate  { background: #8b3fd41f; color: #7734b8; }
-.l-pill--web_search { background: #0277b81f; color: #0369a1; }
-.l-pill--image_gen  { background: #be2e681f; color: #a82a5c; }
+.l-pill--trivial    { background: #8a81991f; color: var(--l-dim); }
+.l-pill--simple     { background: #0b8f681f; color: #0a7d5c; }
+.l-pill--general    { background: #6d3bee1f; color: #5b2fd6; }
+.l-pill--longform   { background: #b06a081f; color: #96590a; }
+.l-pill--reasoning  { background: #c4318f1f; color: #ad2a7e; }
+.l-pill--vision     { background: #0e8fb81f; color: #0c7c9e; }
+.l-pill--tools      { background: #2e8a3f1f; color: #277738; }
+.l-pill--translate  { background: #7a44d61f; color: #6a37c2; }
+.l-pill--web_search { background: #1f6fd01f; color: #1a5fb4; }
+.l-pill--image_gen  { background: #cf33641f; color: #b82a56; }
+
 @media (prefers-color-scheme: dark) {
-  .l-pill--simple     { color: #2dd4bf; }
-  .l-pill--general    { color: #8ba4ff; }
-  .l-pill--longform   { color: #e0b050; }
-  .l-pill--reasoning  { color: #b39bff; }
-  .l-pill--vision     { color: #22d3ee; }
-  .l-pill--tools      { color: #4ade80; }
-  .l-pill--translate  { color: #c9a0ff; }
-  .l-pill--web_search { color: #56b8f0; }
-  .l-pill--image_gen  { color: #f472b6; }
+  .l-pill--trivial    { color: var(--l-dim); }
+  .l-pill--simple     { color: #34d9a0; }
+  .l-pill--general    { color: #a98bff; }
+  .l-pill--longform   { color: #f5b544; }
+  .l-pill--reasoning  { color: #ff86cd; }
+  .l-pill--vision     { color: #4cc9ef; }
+  .l-pill--tools      { color: #6ede83; }
+  .l-pill--translate  { color: #b795ff; }
+  .l-pill--web_search { color: #6ab0f5; }
+  .l-pill--image_gen  { color: #ff7fa6; }
 }
 
 /* ── states ───────────────────────────────────────────────────────────── */

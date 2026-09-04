@@ -147,10 +147,9 @@ const steps = [
         ${opt("best","Best answer","The model whose strengths fit the request. Not always the priciest.")}
       </div>
       <div class="note">
-        Everything runs in your browser. No account, nothing sent anywhere, and
-        no API key needed for any of this — keys are only for the optional local
-        proxy that calls models <i>for</i> you. <code>lane serve</code> if you
-        want that later.
+        That is everything. It runs entirely in your browser — no account, no
+        API key, no server, nothing sent anywhere. Close this and it is already
+        working.
       </div>`;
     },
     read() {

@@ -114,6 +114,8 @@
   // The query the card would send: it keeps tracking what is being typed even
   // on the passes that leave the card alone.
   let pending = "";
+  // Typed before the profile loaded; replayed once it has.
+  let awaiting = null;
 
   // ── when to speak ──────────────────────────────────────────────────────────
   function worthOffering(q, verdict) {
@@ -240,12 +242,12 @@
      * it goes on the clipboard instead. Saying "paste it in" costs four words
      * and is the difference between arriving with your question and arriving
      * at an empty box wondering what happened to it. */
-    const row = (label, pick, note) => {
+    const row = (label, pick, note, kind) => {
       const bits = [SITE_NAME[pick.site]];
       if (note) bits.push(note);
       if (!PREFILLS[pick.site]) bits.push("copied \u2014 paste it in");
       return `
-      <button class="l-row pick" data-site="${esc(pick.site)}">
+      <button class="l-row l-row--${kind} pick" data-site="${esc(pick.site)}">
         <span class="l-row__tag l-label">${label}</span>
         <span class="l-row__main">
           <span class="l-row__name">${esc(pick.rec.display)}</span>
@@ -307,9 +309,9 @@ ${LaneUI.css}
 
     <div class="picks">
       ${same
-        ? row("Use", p.cheap, "cheapest, and the best fit")
-        : (p.cheap ? row("Cheapest", p.cheap, null) : "") +
-          (p.best ? row("Best", p.best, p.best.fit ? "" : null) : "")}
+        ? row("Use", p.cheap, "cheapest, and the best fit", "save")
+        : (p.cheap ? row("Cheapest", p.cheap, null, "save") : "") +
+          (p.best ? row("Best", p.best, p.best.fit ? "" : null, "best") : "")}
     </div>
 
     ${needsSetup ? `<div class="setup">
@@ -367,6 +369,16 @@ ${LaneUI.css}
 
     if (dismissedThisPage) return;
     if (!query) { hide(); return; }
+
+    /* Typed before the profile came back.
+     *
+     * The script now starts with the document rather than after it, which is
+     * the whole point - Google's homepage is typeable long before it is
+     * finished loading, and a listener attached at document_idle misses every
+     * keystroke of a query somebody types the moment the page appears. The
+     * cost is that the first keystrokes can arrive before storage has
+     * answered, so they wait here and main() replays the last one. */
+    if (!profile) { awaiting = query; lastQuery = ""; return; }
 
     const verdict = LaneCore.classify(query);
     if (!worthOffering(query, verdict)) { hide(); return; }
@@ -433,6 +445,15 @@ ${LaneUI.css}
     // Already on a results page: the query is in the URL, so offer against it
     // straight away. Somebody who searched before installing this still gets
     // one chance to see it.
+    // Anything typed while we were still reading storage.
+    if (awaiting) {
+      const held = awaiting;
+      awaiting = null;
+      lastQuery = "";
+      consider(held);
+      return;
+    }
+
     const fromUrl = (new URLSearchParams(location.search).get("q") || "").trim();
     if (fromUrl) consider(fromUrl);
   }

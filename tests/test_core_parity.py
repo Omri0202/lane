@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import pathlib
 import re
+import shutil
 import subprocess
 import sys
 
@@ -220,3 +221,81 @@ def test_the_css_template_contains_no_backticks():
     end = text.index("`;", start)
     assert "`" not in text[start:end], (
         "backtick inside the CSS template literal - use a quote")
+
+
+NO_NETWORK = """
+// Everything an extension could reach the network with, rigged to throw. If
+// any of it fires, the run fails and so does the test.
+const boom = () => { throw new Error("the extension reached for the network"); };
+const fs = require("fs"), vm = require("vm");
+const ctx = { console, performance, document: undefined, window: {},
+              navigator: {}, fetch: boom, XMLHttpRequest: boom };
+vm.createContext(ctx);
+for (const f of ["extension/ui.js", "extension/core/lane-core.js"]) {
+  vm.runInContext(fs.readFileSync(f, "utf8"), ctx, { filename: f });
+}
+const advise = vm.runInContext("LaneCore.advise", ctx);
+const ui = vm.runInContext("LaneUI", ctx);
+const a = advise(process.argv[2], "claude", "save", null);
+console.log(JSON.stringify({
+  lane: a.lane, model: a.recommend.display, cost: a.recommend.cost,
+  saving: a.saving, explain: a.explain, css: ui.css.length,
+}));
+"""
+
+
+def test_it_works_with_nothing_running(tmp_path):
+    """The whole product, with fetch and XMLHttpRequest rigged to throw.
+
+    An extension that needs a command run first is not an extension, it is a
+    program with a browser attachment - and nobody who installs one from a
+    store is going to open a terminal to make it start working. So the brain
+    ships in the browser and the network is an enhancement: a local proxy, if
+    somebody happens to want one, contributes a more accurate savings figure
+    and nothing else.
+
+    This runs the shipped files, not a copy of the logic, and any reach for
+    the network throws rather than being quietly caught.
+    """
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node not installed")
+
+    script = tmp_path / "no_network.js"
+    script.write_text(NO_NETWORK, encoding="utf-8")
+    result = subprocess.run(
+        [node, str(script),
+         "why does my recursive fibonacci get exponentially slower"],
+        capture_output=True, text=True, cwd=ROOT)
+    assert result.returncode == 0, result.stderr
+
+    out = json.loads(result.stdout)
+    assert out["lane"] == "reasoning"
+    assert out["model"] and out["cost"] > 0
+    assert out["saving"] > 0
+    assert len(out["explain"]) > 20
+    assert out["css"] > 1000, "the design system did not load either"
+
+
+def test_no_surface_blocks_on_a_server():
+    """Nothing may await the network before it can show anything.
+
+    The panel used to carry a screen that said to run `lane serve`, and its
+    savings counter only appeared when something was listening. Both are the
+    same mistake in different sizes: a feature that is present or absent
+    depending on whether the user did something nobody told them to do.
+    """
+    ext = ROOT / "extension"
+    advisor = (ext / "advisor.js").read_text(encoding="utf-8")
+
+    assert "lane serve" not in advisor.replace(
+        "run `lane serve` - which is every machine", "")
+    # The counter has a source that is not the server.
+    assert "LEDGER_KEY" in advisor and "readLedger" in advisor
+    assert "renderScore(ledger.messages, ledger.saved)" in advisor
+
+    # And the surfaces that must work on somebody else's page never call out
+    # at all.
+    for name in ("search.js", "profile.js", "ui.js"):
+        src = (ext / name).read_text(encoding="utf-8")
+        assert "fetch(" not in src, f"{name} calls the network"
