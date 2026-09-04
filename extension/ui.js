@@ -314,6 +314,12 @@ const LaneUI = (() => {
 .l-row:focus-visible { outline: 2px solid var(--l-accent); outline-offset: 2px; }
 /* A chevron that leans in on hover. A row that opens something should say so
    before it is clicked, not after. */
+/* The provider's mark, at the right-hand end where the eye lands after the
+   price. In its own colour, which is the part doing the identifying. */
+.l-row__brand { flex: none; display: flex; align-items: center;
+                width: 17px; height: 17px; }
+.l-row__brand svg { width: 100%; height: 100%; display: block; }
+
 .l-row__go { flex: none; color: var(--l-faint); display: flex;
              transition: transform .13s ease, color .13s ease; }
 .l-row__go svg { width: 14px; height: 14px; display: block; }
@@ -426,6 +432,40 @@ const LaneUI = (() => {
     chevron: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L10.5 8 6 12.5"/></svg>',
   };
 
+  /* Who a model comes from, at a glance.
+   *
+   * Drawn inline because a content script cannot fetch an image from a CDN -
+   * no network on somebody else's page, and the card has to render with the
+   * connection down. Simplified on purpose: a traced trademark at 16px is no
+   * more recognisable than a clean glyph in the right colour, and at this
+   * size the colour does most of the identifying.
+   *
+   * `on` is the mark's own colour on a light ground, `dark` on a dark one -
+   * black marks vanish on black. */
+  const brands = {
+    anthropic: {
+      name: "Claude",
+      on: "#c96442", dark: "#e08a6a",
+      svg: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1.7v3.1M8 11.2v3.1M1.7 8h3.1M11.2 8h3.1M3.55 3.55l2.2 2.2M10.25 10.25l2.2 2.2M12.45 3.55l-2.2 2.2M5.75 10.25l-2.2 2.2"/></svg>',
+    },
+    openai: {
+      name: "ChatGPT",
+      on: "#12100e", dark: "#e9e7e2",
+      /* A rounded hexagon. The three-ellipse rosette is closer to the
+         real mark and at 17px it collapses into a cog - tried it, it
+         reads as a settings icon, which is the one thing it must not.
+         The hexagonal silhouette is the part that survives being
+         small, and next to a four-point spark and a radial burst it
+         gives three shapes nobody has to squint at. */
+      svg: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M8 1.7l5.4 3.15v6.3L8 14.3l-5.4-3.15V4.85z"/></svg>',
+    },
+    google: {
+      name: "Gemini",
+      on: "#3d7bf7", dark: "#7ba6ff",
+      svg: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .9c.62 3.75 2.44 5.58 6.2 6.2 .38.06.38.74 0 .8-3.76.62-5.58 2.45-6.2 6.2-.06.38-.74.38-.8 0-.62-3.75-2.45-5.58-6.2-6.2-.38-.06-.38-.74 0-.8 3.75-.62 5.58-2.45 6.2-6.2 .06-.38.74-.38.8 0Z"/></svg>',
+    },
+  };
+
   /* For ordinary pages. Shadow roots take `css` directly instead. */
   function mount(doc) {
     const d = doc || document;
@@ -436,7 +476,7 @@ const LaneUI = (() => {
     (d.head || d.documentElement).appendChild(style);
   }
 
-  return { css, icons, mount };
+  return { css, icons, brands, mount };
 })();
 
 /* Ordinary pages of ours mark themselves with <html data-lane> and get the

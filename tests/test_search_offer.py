@@ -356,3 +356,33 @@ def test_a_row_never_quotes_one_model_and_names_another():
     row = row[:row.index("};")]
     for field in ("pick.rec.display", "pick.rec.cost", "pick.site"):
         assert field in row, field
+
+
+def test_every_site_has_a_mark_and_it_is_drawn_not_fetched():
+    """A content script cannot load an image from a CDN.
+
+    No network on somebody else's page, and the card has to render with the
+    connection down - so the marks are inline SVG. They are simplified on
+    purpose: a traced trademark at 17px is no more recognisable than a clean
+    glyph in the right colour, and the first attempt at OpenAI's rosette
+    collapsed into something that read as a settings cog.
+    """
+    ui = (EXT / "ui.js").read_text(encoding="utf-8")
+    assert "const brands = {" in ui
+    for provider in ("anthropic", "openai", "google"):
+        assert f"{provider}: {{" in ui, provider
+    # Drawn, not linked.
+    block = ui[ui.index("const brands = {"):ui.index("/* For ordinary pages")]
+    assert "<svg" in block
+    assert "http" not in block, "a mark is being fetched from somewhere"
+    # And each needs a colour for both grounds: a black mark vanishes on black.
+    assert block.count("on:") == 3 and block.count("dark:") == 3
+
+
+def test_the_row_carries_the_mark_of_the_service_it_opens():
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    assert "LaneUI.brands[PROVIDER[pick.site]]" in src
+    assert "l-row__brand" in src
+    # Every site the card can offer must map to a provider that has one.
+    for site in ("claude", "chatgpt", "gemini"):
+        assert site in src.split("const PROVIDER =")[1][:160], site

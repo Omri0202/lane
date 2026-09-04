@@ -298,22 +298,35 @@
     const LABEL = { cheapest: "Cheapest", best: "Best", both: "Use" };
     const KIND = { cheapest: "save", best: "best", both: "save" };
 
+    const PROVIDER = { claude: "anthropic", chatgpt: "openai", gemini: "google" };
+    const dark = matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+
     const row = (pick) => {
-      const bits = [SITE_NAME[pick.site]];
+      const brand = LaneUI.brands[PROVIDER[pick.site]] || null;
+      const bits = [];
       if (pick.badge === "both") bits.push("cheapest, and the best fit");
       if (LaneProfile.isPaid(pick.rec.id)) bits.push("costs extra");
+
       return `
       <button class="l-row ${pick.badge ? "l-row--" + KIND[pick.badge] : ""} pick"
-              data-site="${esc(pick.site)}">
-        <span class="l-row__tag l-label">${pick.badge ? LABEL[pick.badge] : ""}</span>
+              data-site="${esc(pick.site)}"
+              title="Continue this on ${esc(SITE_NAME[pick.site])}">
+        ${pick.badge
+          ? `<span class="l-row__tag l-label">${LABEL[pick.badge]}</span>` : ""}
         <span class="l-row__main">
           <span class="l-row__name">${esc(pick.rec.display)}</span>
-          <span class="l-row__note">${esc(bits.join(" \u00b7 "))}</span>
+          <span class="l-row__note">${esc(
+            [SITE_NAME[pick.site]].concat(bits).join(" \u00b7 "))}</span>
         </span>
         <span class="l-row__end l-num">${money(pick.rec.cost)}</span>
+        <span class="l-row__brand" style="color:${brand ? (dark ? brand.dark : brand.on) : "currentColor"}"
+              aria-hidden="true">${brand ? brand.svg : ""}</span>
         <span class="l-row__go">${LaneUI.icons.chevron}</span>
       </button>`;
     };
+
+    const picked = p.rows.filter((r) => r.badge);
+    const others = p.rows.filter((r) => !r.badge);
 
     root.innerHTML = `
 <style>
@@ -330,6 +343,19 @@ ${LaneUI.css}
 
 .lead  { margin: 0 0 2px; }
 .picks { margin-top: var(--l-3); display: flex; flex-direction: column; gap: 6px; }
+
+/* The two the card has an opinion about sit forward; the rest are a list of
+   places you could also go, and saying so is what stops them reading as three
+   more recommendations the card forgot to rank. */
+.also { display: flex; align-items: center; gap: var(--l-2);
+        margin: var(--l-2) 0 1px; }
+.also::after { content: ""; flex: 1; height: 1px; background: var(--l-line); }
+
+.picks .l-row:not([class*="l-row--"]) { background: var(--l-panel);
+                                        border-color: transparent; }
+.picks .l-row:not([class*="l-row--"]):hover { background: var(--l-sunk);
+                                              border-color: var(--l-line-2); }
+.picks .l-row:not([class*="l-row--"]) .l-row__name { font-weight: 560; }
 
 .setup { margin-top: var(--l-3); display: flex; gap: 9px; align-items: flex-start;
          padding: 9px 10px; border-radius: var(--l-r-md);
@@ -365,7 +391,10 @@ ${LaneUI.css}
     <p class="l-sub" style="margin:0">${esc(reason)}</p>
 
     <div class="picks">
-      ${p.rows.map(row).join("")}
+      ${picked.map(row).join("")}
+      ${others.length ? `<div class="also">
+        <span class="l-label">Also open on</span>
+      </div>${others.map(row).join("")}` : ""}
     </div>
 
     ${needsSetup ? `<div class="setup">

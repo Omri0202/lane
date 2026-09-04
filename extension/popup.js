@@ -18,6 +18,18 @@ const money = (n) => n <= 0 ? "free"
 $("gear").innerHTML = LaneUI.icons.gear;
 $("logo").innerHTML = LaneUI.icons.mark;
 
+/* The provider's mark, coloured for the ground it sits on. */
+const PROVIDER_OF = { claude: "anthropic", chatgpt: "openai", gemini: "google",
+Claude: "anthropic", ChatGPT: "openai", Gemini: "google" };
+function markFor(key) {
+const b = LaneUI.brands[PROVIDER_OF[key] || key];
+if (!b) return "";
+const dark = matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+return `<span class="mark" style="color:${dark ? b.dark : b.on}"
+aria-hidden="true">${b.svg}</span>`;
+}
+
+
 const SITE_URL = { claude:"https://claude.ai/new",
                    chatgpt:"https://chatgpt.com/",
                    gemini:"https://gemini.google.com/app" };
@@ -100,7 +112,8 @@ function render() {
       ${favs.length ? `<div class="favs">
         <span class="l-label">Your favourites</span>
         <div class="favrow">${favs.map((m) =>
-          `<button class="l-btn" data-open="${esc(m.provider)}">${esc(m.display)}</button>`).join("")}</div>
+          `<button class="l-btn" data-open="${esc(m.provider)}">${
+             markFor(m.provider)}${esc(m.display)}</button>`).join("")}</div>
       </div>` : ""}
     </div>`;
 

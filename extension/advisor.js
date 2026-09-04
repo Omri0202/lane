@@ -156,6 +156,8 @@ ${LaneUI.css}
 .go { display:flex; align-items:baseline; gap: var(--l-2); margin-top: 6px;
       font-size: 12px; }
 .go .site { font-weight: 620; }
+.mark { display: inline-flex; width: 15px; height: 15px; flex: none; }
+.mark svg { width: 100%; height: 100%; display: block; }
 .go .mdl  { color: var(--l-dim); flex: 1; }
 
 .score { border-top: 1px solid var(--l-line); background: var(--l-panel);
@@ -349,6 +351,18 @@ ${LaneUI.css}
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /* The provider's mark, coloured for the ground it sits on. */
+  const PROVIDER_OF = { claude: "anthropic", chatgpt: "openai", gemini: "google",
+                        Claude: "anthropic", ChatGPT: "openai", Gemini: "google" };
+  function markFor(key) {
+    const b = LaneUI.brands[PROVIDER_OF[key] || key];
+    if (!b) return "";
+    const dark = matchMedia && matchMedia("(prefers-color-scheme: dark)").matches;
+    return `<span class="mark" style="color:${dark ? b.dark : b.on}"
+                  aria-hidden="true">${b.svg}</span>`;
+  }
+
 
   /* A content script may not navigate to a chrome-extension:// URL - Chrome
    * refuses it as ERR_BLOCKED_BY_CLIENT, indistinguishable from an ad
@@ -567,6 +581,7 @@ ${LaneUI.css}
   function renderElsewhere(a) {
     const rows = (a.elsewhere || []).slice(0, 3).map((e) => `
       <div class="go">
+        ${markFor(e.site)}
         <span class="site">${esc(e.site)}</span>
         <span class="mdl">${esc(e.display)}</span>
         <span class="l-num">${money(e.cost)}</span>
