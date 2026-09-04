@@ -327,3 +327,32 @@ def test_the_question_arrives_typed_rather_than_pasted():
     assert "HTMLTextAreaElement.prototype" in src, "assigns .value directly"
     assert "insertText" in src, "no path for a contenteditable composer"
     assert "HANDOFF_TTL" in src, "a stale question could be picked up"
+
+
+def test_every_site_you_use_gets_a_row():
+    """The card kept only the winners, and one site can hold both.
+
+    ChatGPT does, for anything long: GPT-5 mini is the cheapest thing that
+    clears most floors and GPT-5 tops the tier table. So the card showed two
+    ChatGPT rows and Claude and Gemini vanished without a word - and somebody
+    who uses Gemini reasonably concluded Gemini was broken.
+    """
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    body = src[src.index("function picks("):src.index("// ── the card")]
+    assert "for (const e of perSite) add(e.site, e.cheap, null)" in body, (
+        "sites that won nothing are still dropped")
+    # And the badges are on picks, not sites: the same site holding both with
+    # two different models has to produce two rows, or one of them names a
+    # model whose price belongs to the other.
+    assert 'add(cheapest.site, cheapest.cheap, "cheapest")' in body
+    assert 'add(strongest.site, strongest.best, "best")' in body
+    assert 'seen.has(key)' in body, "a pick could be listed twice"
+
+
+def test_a_row_never_quotes_one_model_and_names_another():
+    """Every row carries its own recommendation and its own price."""
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    row = src[src.index("const row = (pick)"):]
+    row = row[:row.index("};")]
+    for field in ("pick.rec.display", "pick.rec.cost", "pick.site"):
+        assert field in row, field

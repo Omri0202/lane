@@ -208,23 +208,53 @@
       ? profile.sites : Object.keys(SITE_URL);
     const allowed = LaneProfile.allowed(profile);
 
-    let cheap = null, best = null, lane = null;
+    /* Badged by PICK, not by site.
+     *
+     * One site can hold both badges with two different models - ChatGPT does,
+     * with mini at a fifth of the price and GPT-5 at the top of the tier
+     * table - and collapsing that into one row showed the cheap model while
+     * calling it the best fit, which is a different model and therefore a
+     * lie. Two rows for one site is the honest shape, and it is also the
+     * useful one: mini or GPT-5 is a real choice somebody can make.
+     *
+     * Every remaining site then gets a row at its cheapest, because a card
+     * that silently drops the sites you use looks broken rather than
+     * opinionated. */
+    const perSite = [];
     for (const site of sites) {
-      const s = LaneCore.advise(query, site, "save", allowed);
-      if (s.unavailable_here) continue;
-      lane = lane || s;
-      if (!cheap || s.recommend.cost < cheap.rec.cost) {
-        cheap = { site, rec: s.recommend, a: s };
-      }
-      const b = LaneCore.advise(query, site, "best", allowed);
-      if (b.unavailable_here) continue;
-      if (!best || b.recommend.tier > best.rec.tier
-          || (b.recommend.tier === best.rec.tier
-              && b.recommend.cost < best.rec.cost)) {
-        best = { site, rec: b.recommend, a: b, fit: b.fit };
-      }
+      const cheap = LaneCore.advise(query, site, "save", allowed);
+      if (cheap.unavailable_here) continue;
+      const best = LaneCore.advise(query, site, "best", allowed);
+      perSite.push({ site, cheap, best: best.unavailable_here ? cheap : best });
     }
-    return { cheap, best, lane };
+    if (!perSite.length) return { rows: [], lane: null };
+
+    let cheapest = perSite[0], strongest = perSite[0];
+    for (const e of perSite) {
+      if (e.cheap.recommend.cost < cheapest.cheap.recommend.cost) cheapest = e;
+      const t = e.best.recommend, s2 = strongest.best.recommend;
+      if (t.tier > s2.tier || (t.tier === s2.tier && t.cost < s2.cost)) strongest = e;
+    }
+
+    const rows = [];
+    const seen = new Set();
+    const add = (site, a, badge) => {
+      const key = site + ":" + a.recommend.id;
+      if (seen.has(key)) {
+        if (badge) {                       // same pick wearing both badges
+          const row = rows.find((r) => r.key === key);
+          if (row) row.badge = "both";
+        }
+        return;
+      }
+      seen.add(key);
+      rows.push({ key, site, rec: a.recommend, a, badge: badge || null });
+    };
+
+    add(cheapest.site, cheapest.cheap, "cheapest");
+    add(strongest.site, strongest.best, "best");
+    for (const e of perSite) add(e.site, e.cheap, null);
+    return { rows, lane: rows[0].a };
   }
 
   // ── the card ───────────────────────────────────────────────────────────────
@@ -240,15 +270,13 @@
      * types, and tearing the node down and building it again on each pass
      * makes it strobe. Most keystrokes change the query without changing
      * either pick, so most passes should change nothing on screen. */
-    const sig = [p.lane.lane, p.cheap && p.cheap.rec.id, p.cheap && p.cheap.site,
-                 p.best && p.best.rec.id, p.best && p.best.site,
-                 profile.onboarded].join("|");
+    const sig = [p.lane.lane, profile.onboarded,
+                 p.rows.map((r) => r.site + ":" + r.rec.id).join(",")].join("|");
     if (host && sig === shownSig) { pending = query; return; }
     shownSig = sig;
     pending = query;
     hide();
     const a = p.lane;
-    const same = p.cheap && p.best && p.cheap.rec.id === p.best.rec.id;
     const needsSetup = !profile.onboarded;
     const headline = HEADLINE[a.lane] || HEADLINE._;
     const reason = REASON[a.lane] || REASON._;
@@ -267,19 +295,17 @@
      * it goes on the clipboard instead. Saying "paste it in" costs four words
      * and is the difference between arriving with your question and arriving
      * at an empty box wondering what happened to it. */
-    const row = (label, pick, note, kind) => {
-      const bits = [SITE_NAME[pick.site]];
-      // Said on the row itself, not in a footnote: this is the moment
-      // somebody decides whether to click, and finding out afterwards that
-      // the model wants a subscription is finding out too late.
-      if (LaneProfile.isPaid(pick.rec.id)) bits.push("costs extra");
-      if (note) bits.push(note);
-      // No longer "copied, paste it in": the question is carried over and
-      // typed in on arrival, on every one of the three.
+    const LABEL = { cheapest: "Cheapest", best: "Best", both: "Use" };
+    const KIND = { cheapest: "save", best: "best", both: "save" };
 
+    const row = (pick) => {
+      const bits = [SITE_NAME[pick.site]];
+      if (pick.badge === "both") bits.push("cheapest, and the best fit");
+      if (LaneProfile.isPaid(pick.rec.id)) bits.push("costs extra");
       return `
-      <button class="l-row l-row--${kind} pick" data-site="${esc(pick.site)}">
-        <span class="l-row__tag l-label">${label}</span>
+      <button class="l-row ${pick.badge ? "l-row--" + KIND[pick.badge] : ""} pick"
+              data-site="${esc(pick.site)}">
+        <span class="l-row__tag l-label">${pick.badge ? LABEL[pick.badge] : ""}</span>
         <span class="l-row__main">
           <span class="l-row__name">${esc(pick.rec.display)}</span>
           <span class="l-row__note">${esc(bits.join(" \u00b7 "))}</span>
@@ -339,10 +365,7 @@ ${LaneUI.css}
     <p class="l-sub" style="margin:0">${esc(reason)}</p>
 
     <div class="picks">
-      ${same
-        ? row("Use", p.cheap, "cheapest, and the best fit", "save")
-        : (p.cheap ? row("Cheapest", p.cheap, null, "save") : "") +
-          (p.best ? row("Best", p.best, p.best.fit ? "" : null, "best") : "")}
+      ${p.rows.map(row).join("")}
     </div>
 
     ${needsSetup ? `<div class="setup">
@@ -436,7 +459,7 @@ ${LaneUI.css}
     if (!worthOffering(query, verdict)) { hide(); return; }
 
     const p = picks(query);
-    if (!p.cheap && !p.best) { hide(); return; }
+    if (!p.rows.length) { hide(); return; }
     show(query, p);
   }
 
