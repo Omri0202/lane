@@ -142,7 +142,7 @@ def main() -> None:
             "context": m.context, "max_output": m.max_output,
             "vision": m.vision, "tools": m.tools, "web": m.web,
             "kind": m.kind, "image_out": m.image_out,
-            "per_image": m.per_image, "speed": m.speed,
+            "per_image": m.per_image, "speed": m.speed, "plan": m.plan,
             "strengths": list(m.strengths),
         })
 

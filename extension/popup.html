@@ -93,6 +93,14 @@ textarea.l-field { min-height: 64px; resize: vertical; display: block; }
 
 <div id="root"></div>
 
+<div class="foot" id="footPaid">
+  <span class="l-sub l-grow">Models that cost extra</span>
+  <div class="l-seg" id="paid" role="group" aria-label="Models that cost extra">
+    <button data-paid="1" aria-pressed="false">SHOW</button>
+    <button data-paid="0" aria-pressed="true">HIDE</button>
+  </div>
+</div>
+
 <div class="foot" id="foot" hidden>
   <span class="l-sub l-grow">Suggestions while you search</span>
   <div class="l-seg" id="offers" role="group" aria-label="Offers on search engines">

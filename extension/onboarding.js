@@ -52,12 +52,17 @@ const steps = [
   },
   {
     title: "Which models can you pick?",
-    sub: "Untick anything your plan does not give you. Being told to use a model you cannot reach is not advice, it is a chore.",
+    sub: "Ticked is what LANE may suggest. Models marked ‘costs extra’ are off to begin with — being told to use one you cannot reach is not advice, it is a chore with a paywall at the end.",
     render() {
       const wanted = new Set(profile.sites.map(
         (id) => (SITES.find((s) => s.id === id) || {}).provider));
       const chosen = new Set(profile.models);
       const known = profile.models.length > 0;
+      // An unanswered question shows the default that is actually in force -
+      // free models ticked, paid ones not - rather than everything ticked and
+      // a panel that then quietly ignores half of it.
+      const ticked = (m) => known ? chosen.has(m.id)
+                                  : (profile.paid || m.plan !== "paid");
       const groups = SITES.filter((s) => wanted.has(s.provider)).map((s) => {
         const models = LaneCore.MODELS
           .filter((m) => m.provider === s.provider && m.kind === "chat")
@@ -65,10 +70,11 @@ const steps = [
         if (!models.length) return "";
         return `<div class="group"><span class="l-label">${s.name}</span><div class="opts">${
           models.map((m) => `
-            <label class="opt ${!known || chosen.has(m.id) ? "on" : ""}">
+            <label class="opt ${ticked(m) ? "on" : ""}">
               <input type="checkbox" data-model="${esc(m.id)}"
-                     ${!known || chosen.has(m.id) ? "checked" : ""}>
-              <span><span class="t">${esc(m.display)}</span>
+                     ${ticked(m) ? "checked" : ""}>
+              <span><span class="t">${esc(m.display)}${m.plan === "paid"
+                      ? ` <span class="l-label l-warn">costs extra</span>` : ""}</span>
                     <span class="d">${esc(m.strengths.join(" · ") || "general")}</span></span>
               <span class="p">${money(m.in_price)} / ${money(m.out_price)} per Mtok</span>
             </label>`).join("")}</div></div>`;
@@ -81,6 +87,9 @@ const steps = [
       // Everything ticked means "no restriction", not a list that goes stale
       // the next time a model is added.
       profile.models = on.length === boxes.length ? [] : on;
+      // Ticking one is the consent. Otherwise somebody enables Opus here and
+      // the panel keeps hiding it because a switch two screens away is off.
+      if (on.some((id) => LaneProfile.isPaid(id))) profile.paid = true;
     },
   },
   {

@@ -1215,6 +1215,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 40,
+   "plan": "paid",
    "strengths": [
     "code",
     "depth",
@@ -1240,6 +1241,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 50,
+   "plan": "paid",
    "strengths": [
     "code",
     "depth",
@@ -1264,6 +1266,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 60,
+   "plan": "free",
    "strengths": [
     "code",
     "depth",
@@ -1288,6 +1291,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 50,
+   "plan": "paid",
    "strengths": [
     "code",
     "depth",
@@ -1312,6 +1316,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 65,
+   "plan": "paid",
    "strengths": [
     "depth",
     "long_context",
@@ -1336,6 +1341,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": true,
    "per_image": 0.04,
    "speed": 1,
+   "plan": "paid",
    "strengths": [
     "image"
    ]
@@ -1356,6 +1362,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": true,
    "per_image": 0.04,
    "speed": 1,
+   "plan": "paid",
    "strengths": [
     "image"
    ]
@@ -1376,6 +1383,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 70,
+   "plan": "free",
    "strengths": [
     "code",
     "prose",
@@ -1400,6 +1408,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 70,
+   "plan": "paid",
    "strengths": [
     "code",
     "prose",
@@ -1424,6 +1433,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 477,
+   "plan": "free",
    "strengths": [
     "code",
     "depth",
@@ -1446,6 +1456,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 100,
+   "plan": "free",
    "strengths": [
     "code",
     "speed",
@@ -1470,6 +1481,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": true,
    "per_image": 0.04,
    "speed": 1,
+   "plan": "paid",
    "strengths": [
     "image"
    ]
@@ -1490,6 +1502,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 140,
+   "plan": "free",
    "strengths": [
     "long_context",
     "speed",
@@ -1514,6 +1527,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 801,
+   "plan": "free",
    "strengths": [
     "code",
     "speed",
@@ -1536,6 +1550,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 110,
+   "plan": "paid",
    "strengths": [
     "prose",
     "speed",
@@ -1560,6 +1575,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 120,
+   "plan": "paid",
    "strengths": [
     "speed",
     "tools",
@@ -1583,6 +1599,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 440,
+   "plan": "free",
    "strengths": [
     "tools",
     "web"
@@ -1604,6 +1621,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 470,
+   "plan": "free",
    "strengths": [
     "speed",
     "tools"
@@ -1625,6 +1643,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 472,
+   "plan": "free",
    "strengths": [
     "tools",
     "vision"
@@ -1646,6 +1665,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 180,
+   "plan": "paid",
    "strengths": [
     "speed",
     "tools",
@@ -1669,6 +1689,7 @@ const FOREIGN_TRANSLATE = /(?<![A-Za-z֐-׿؀-ۿͰ-ϿЀ-ӿऀ-ॿ])(?:תרגם|�
    "image_out": false,
    "per_image": 0.0,
    "speed": 200,
+   "plan": "free",
    "strengths": [
     "speed",
     "tools",

@@ -58,6 +58,21 @@ class Model:
     #: but on the API it genuinely varies — and a model that cannot look
     #: answers a "what happened today" question from memory, confidently.
     web: bool = True
+    #: "free" when this model can be picked on its provider's consumer site,
+    #: or called on its API, without paying anything extra - and "paid"
+    #: otherwise. This is NOT in_price: per-token cost answers "which is
+    #: cheaper", while this answers "can I click that at all", and only the
+    #: second one decides whether a recommendation is usable.
+    #:
+    #: Defaults to "paid" on purpose. Being wrong that way costs a sentence of
+    #: explanation; being wrong the other way walks somebody into a paywall
+    #: the panel told them to click.
+    #:
+    #: The most perishable field here. Free tiers move on the providers'
+    #: schedule, so it is plain data rather than logic, and the setup screen
+    #: lets anybody correct it for their own account.
+    plan: str = "paid"
+
     #: What this model is actually good at, from a fixed vocabulary:
     #: depth, code, prose, speed, vision, web, tools, long_context, image.
     #:

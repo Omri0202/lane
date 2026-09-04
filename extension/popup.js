@@ -256,6 +256,23 @@ $("offers").addEventListener("click", (e) => {
   paintOffers(on);
 });
 
+function paintPaid(on) {
+  for (const b of $("paid").children)
+    b.setAttribute("aria-pressed", String((b.dataset.paid === "1") === on));
+}
+
+$("paid").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b || !profile) return;
+  const on = b.dataset.paid === "1";
+  profile.paid = on;
+  LaneProfile.patch({ paid: on });
+  paintPaid(on);
+  render();
+  const what = $("what");
+  if (what && what.value.trim()) answer(what.value);
+});
+
 readOffers().then((d) => {
   paintOffers(!d.off);
   $("foot").hidden = false;
@@ -264,6 +281,7 @@ readOffers().then((d) => {
 LaneProfile.load().then((p) => {
   profile = p;
   variation = p.variation === "best" ? "best" : "save";
+  paintPaid(!!p.paid);
   for (const x of $("seg").children)
     x.setAttribute("aria-pressed", String(x.dataset.v === variation));
   render();

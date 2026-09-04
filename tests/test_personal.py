@@ -250,3 +250,74 @@ def test_a_panel_that_renders_can_also_be_clicked():
             continue
         assert "l-card" in src, (
             f"{name} blocks pointer events but mounts no card that restores them")
+
+
+# ── what a model costs the person in front of it ─────────────────────────────
+
+def test_every_model_says_whether_it_costs_extra():
+    """Per-token price answers "which is cheaper".
+
+    It does not answer the question somebody has when a panel says "use Claude
+    Fable 5", which is whether they can click that or whether it wants their
+    credit card. Those are different facts and the second decides whether the
+    advice is usable at all.
+    """
+    import sys
+    sys.path.insert(0, str(ROOT))
+    from lane import catalog
+    for m in catalog.all_models():
+        assert m.plan in ("free", "paid"), (m.id, m.plan)
+    free = [m for m in catalog.all_models() if m.plan == "free"]
+    assert free, "no model is reachable without paying, which cannot be right"
+    # One free chat model per consumer site, or the panel has nothing to say
+    # to somebody who has not paid.
+    for provider in ("anthropic", "openai", "google"):
+        assert any(m.provider == provider and m.kind == "chat"
+                   for m in free), provider
+
+
+def test_a_new_profile_is_offered_only_what_it_can_use():
+    """Default off, because the alternative is a panel that confidently tells
+    somebody on a free plan to use a model they will meet a paywall behind -
+    and the only way to find that out is to click it."""
+    src = read("profile.js")
+    block = re.search(r"const DEFAULT = \{(.*?)\n  \};", src, re.S).group(1)
+    assert re.search(r"paid:\s*false", block), "paid models are on by default"
+    # And allowed() has to actually apply it, not just store it.
+    body = src.split("function allowed")[1][:700]
+    assert "profile.paid" in body and 'plan !== "paid"' in body
+
+
+def test_the_panel_names_the_paid_model_it_is_holding_back():
+    """Filtering paid models out silently turns the panel into a liar by
+    omission: it would recommend second best with no hint that a trade was
+    made on somebody's behalf."""
+    src = read("advisor.js")
+    assert "allowedIgnoringCost" in src, "it never works out what it is hiding"
+    assert "withPaid" in src
+    assert "would fit this better" in src
+    assert 'id="showPaid"' in src, "no way to change your mind"
+
+
+def test_a_paid_model_is_labelled_wherever_it_is_named():
+    for name in ("advisor.js", "search.js", "onboarding.js"):
+        src = (EXT / name).read_text(encoding="utf-8")
+        assert "costs extra" in src, name
+
+
+def test_the_page_is_clicked_the_way_a_mouse_clicks_it():
+    """el.click() fires one untrusted `click` and nothing else.
+
+    Claude, ChatGPT and Gemini all build their model pickers on headless
+    component libraries whose menus open on POINTERDOWN and whose items commit
+    on mousedown. None of those handlers ever sees a bare click, so the menu
+    never opens and the panel reports the model is "not in this page's list"
+    while the list sits there unopened. Reproduced in the dev harness, whose
+    picker is pointerdown-driven for exactly this reason.
+    """
+    src = read("advisor.js")
+    for event in ("pointerdown", "mousedown", "pointerup", "mouseup"):
+        assert event in src, event
+    # And the real sequence must be what applyModel uses.
+    assert "realClick(picker.el)" in src
+    assert "picker.el.click();" not in src

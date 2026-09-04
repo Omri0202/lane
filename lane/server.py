@@ -1319,7 +1319,11 @@ async def advisor_harness(site: str = "claude"):
     role=option, and not one useful class name anywhere.
     """
     models = {
-        "claude": ["Claude Opus 4.1", "Claude Sonnet 5", "Claude Haiku 4.5"],
+        # A paid model is in each list on purpose: switching TO one is the
+        # path most likely to be wrong, because it is the one somebody only
+        # takes after deciding to spend money.
+        "claude": ["Claude Opus 4.1", "Claude Fable 5", "Claude Sonnet 5",
+                   "Claude Haiku 4.5"],
         "chatgpt": ["GPT-5", "GPT-5 mini", "GPT-4.1 mini"],
         "gemini": ["Gemini 2.5 Pro", "Gemini 2.5 Flash"],
     }.get(site, ["Claude Sonnet 5"])
@@ -1365,7 +1369,11 @@ async def advisor_harness(site: str = "claude"):
 // whatever was chosen.
 const btn = document.getElementById("picker");
 let menu = null;
-btn.addEventListener("click", () => {{
+// POINTERDOWN, not click - which is what Claude, ChatGPT and Gemini all do,
+// because they are built on headless component libraries that open menus on
+// the pointer going down rather than on a completed click. A harness whose
+// menu opens on click is a harness that passes while the real thing fails.
+btn.addEventListener("pointerdown", () => {{
   if (menu) {{ menu.remove(); menu = null; btn.setAttribute("aria-expanded","false"); return; }}
   menu = document.createElement("div");
   menu.className = "m3q";
@@ -1379,7 +1387,8 @@ btn.addEventListener("click", () => {{
       btn.setAttribute("aria-expanded", "false");
     }}
   }});
-  menu.addEventListener("click", (e) => {{
+  // And options commit on mousedown, for the same reason.
+  menu.addEventListener("mousedown", (e) => {{
     const opt = e.target.closest('[role=option]');
     if (!opt) return;
     btn.textContent = opt.textContent;

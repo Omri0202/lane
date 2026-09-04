@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "_readme": [
-    "This file is DATA, not code. Edit it freely \u2014 `lane models` reads it live.",
+    "This file is DATA, not code. Edit it freely — `lane models` reads it live.",
     "Prices are USD per million tokens. `tier` is a 0-100 capability score used",
     "only for ranking within LANE; it is a judgement, not a benchmark result.",
     "",
@@ -13,7 +13,8 @@
     "sampling: false means the provider REJECTS temperature/top_p with a 400. The adapter strips them rather than forwarding what the client sent.",
     "groq/compound is deliberately ABSENT. G.I.L. measured it returning no content in streaming mode across three attempts; a model that silently answers nothing is worse than a missing one. Re-add it only once its tool-step response shape is handled.",
     "There is deliberately NO Anthropic image model. No Claude model generates images, and inventing one so the advisor always has an answer would make it confidently wrong on the exact request where being wrong is most obvious. When a site cannot do the job, the advisor says which one can.",
-    "strengths is what separates the performance variation from a rate card. Tier says how good a model is; strengths say what it is good AT, so 'best for this request' can mean the fast model for a greeting and the thinking one for a proof."
+    "strengths is what separates the performance variation from a rate card. Tier says how good a model is; strengths say what it is good AT, so 'best for this request' can mean the fast model for a greeting and the thinking one for a proof.",
+    "`plan` is \"free\" when the model can be picked on its provider's consumer site, or called on its API, without paying extra. It is NOT in_price: one answers \"which is cheaper\", the other \"can I click that at all\". It defaults to paid and is the most perishable field here - free tiers change on the providers' schedule, so correct it freely."
   ],
   "pricing_verified": {
     "anthropic": "2026-06-24",
@@ -48,7 +49,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "claude-opus-5",
@@ -74,7 +76,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "claude-opus-4-8",
@@ -99,7 +102,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "claude-sonnet-5",
@@ -113,7 +117,7 @@
       "vision": true,
       "tools": true,
       "speed": 70,
-      "notes": "Strictly cheaper and stronger than Sonnet 4.6 \u2014 the value pick.",
+      "notes": "Strictly cheaper and stronger than Sonnet 4.6 — the value pick.",
       "sampling": false,
       "kind": "chat",
       "image_out": false,
@@ -125,7 +129,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "claude-sonnet-4-6",
@@ -151,7 +156,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "claude-haiku-4-5",
@@ -175,7 +181,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "gpt-5",
@@ -200,7 +207,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "gpt-5-mini",
@@ -225,7 +233,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "gpt-5-nano",
@@ -249,7 +258,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "gpt-4.1-mini",
@@ -274,7 +284,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "gemini-2.5-pro",
@@ -299,7 +310,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "gemini-2.5-flash",
@@ -324,7 +336,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "gemini-2.5-flash-lite",
@@ -348,7 +361,8 @@
         "tools",
         "vision",
         "web"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "openai/gpt-oss-120b",
@@ -372,7 +386,8 @@
         "code",
         "depth",
         "tools"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "openai/gpt-oss-20b",
@@ -396,7 +411,8 @@
         "code",
         "speed",
         "tools"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "qwen/qwen3.6-27b",
@@ -411,7 +427,7 @@
       "tools": true,
       "speed": 472,
       "sampling": true,
-      "notes": "The ONLY model on Groq that reads images \u2014 so it is the whole vision lane when Groq is your only provider.",
+      "notes": "The ONLY model on Groq that reads images — so it is the whole vision lane when Groq is your only provider.",
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
@@ -419,7 +435,8 @@
       "strengths": [
         "tools",
         "vision"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "qwen/qwen3.8-27b",
@@ -442,7 +459,8 @@
       "strengths": [
         "speed",
         "tools"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "groq/compound-mini",
@@ -457,7 +475,7 @@
       "tools": true,
       "speed": 440,
       "sampling": true,
-      "notes": "Searches the web and runs code itself, replacing a multi-step agent loop. Its sibling groq/compound is excluded \u2014 G.I.L. measured it returning no content when streaming.",
+      "notes": "Searches the web and runs code itself, replacing a multi-step agent loop. Its sibling groq/compound is excluded — G.I.L. measured it returning no content when streaming.",
       "kind": "chat",
       "image_out": false,
       "per_image": 0.0,
@@ -465,7 +483,8 @@
       "strengths": [
         "tools",
         "web"
-      ]
+      ],
+      "plan": "free"
     },
     {
       "id": "gpt-image-1",
@@ -487,7 +506,8 @@
       "web": false,
       "strengths": [
         "image"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "dall-e-3",
@@ -509,7 +529,8 @@
       "web": false,
       "strengths": [
         "image"
-      ]
+      ],
+      "plan": "paid"
     },
     {
       "id": "imagen-4",
@@ -531,7 +552,8 @@
       "web": false,
       "strengths": [
         "image"
-      ]
+      ],
+      "plan": "paid"
     }
   ]
 }

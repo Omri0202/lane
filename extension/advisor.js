@@ -130,6 +130,13 @@ ${LaneUI.css}
 .why { margin-top: var(--l-3); padding-top: var(--l-3);
        border-top: 1px solid var(--l-line); }
 
+/* Amber, the same amber that means "best" on every row, because that is what
+   this is: the better answer, with a price on it. */
+.paidnote { margin-top: var(--l-3); padding: 9px 10px;
+            border-radius: var(--l-r-md); background: var(--l-best-soft);
+            box-shadow: inset 3px 0 0 var(--l-best); }
+.paidnote b { font-weight: 620; color: var(--l-ink); }
+
 .setup { margin-top: var(--l-3); display: flex; gap: 9px;
          align-items: flex-start; padding: 9px 10px;
          border-radius: var(--l-r-md); background: var(--l-sunk); }
@@ -264,6 +271,71 @@ ${LaneUI.css}
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  /* A pointer sequence, not a .click().
+   *
+   * el.click() fires exactly one untrusted `click` and nothing else. Claude,
+   * ChatGPT and Gemini all build their pickers on headless component
+   * libraries - Radix and friends - whose menus open on POINTERDOWN and whose
+   * items commit on pointerup or mousedown. None of those handlers ever sees
+   * a bare click, so the menu stays shut, the option is never found, and the
+   * panel says the model is "not in this page's list" while the list is right
+   * there unopened.
+   *
+   * Everything below is dispatched in the order a real mouse produces it, at
+   * the element's own centre, with the button flags a primary click carries.
+   * They are still untrusted events - an extension cannot forge trusted ones
+   * - but untrusted events with the right names in the right order are what
+   * these libraries listen for. */
+  function realClick(el) {
+    if (!el) return false;
+    const box = el.getBoundingClientRect();
+    const x = box.left + box.width / 2;
+    const y = box.top + box.height / 2;
+    const base = {
+      bubbles: true, cancelable: true, composed: true, view: window,
+      clientX: x, clientY: y, screenX: x, screenY: y,
+      button: 0, buttons: 1, detail: 1,
+    };
+    const pointer = Object.assign({ pointerId: 1, pointerType: "mouse",
+                                    isPrimary: true, width: 1, height: 1 }, base);
+
+    const fire = (Type, name, init) => {
+      try { el.dispatchEvent(new Type(name, init)); } catch (e) { /* older API */ }
+    };
+
+    // Hover first: some menus only mount their trigger's handlers on enter.
+    fire(PointerEvent, "pointerover", pointer);
+    fire(PointerEvent, "pointerenter", pointer);
+    fire(MouseEvent, "mouseover", base);
+    fire(MouseEvent, "mousemove", base);
+
+    fire(PointerEvent, "pointerdown", pointer);
+    fire(MouseEvent, "mousedown", base);
+    try { if (el.focus) el.focus({ preventScroll: true }); } catch (e) { /* fine */ }
+    fire(PointerEvent, "pointerup", Object.assign({}, pointer, { buttons: 0 }));
+    fire(MouseEvent, "mouseup", Object.assign({}, base, { buttons: 0 }));
+    fire(MouseEvent, "click", Object.assign({}, base, { buttons: 0 }));
+
+    // And the plain call as well, for anything that only wired onclick. It is
+    // idempotent for a menu that has already acted on the sequence above.
+    try { el.click(); } catch (e) { /* fine */ }
+    return true;
+  }
+
+  /* Some pickers are a div with the handler on an ancestor, and some put it on
+   * an inner span. Walking up a few levels costs nothing and catches both. */
+  function clickThrough(el) {
+    realClick(el);
+    for (let up = el.parentElement, i = 0; up && i < 2; up = up.parentElement, i++) {
+      if (up.getAttribute && (up.getAttribute("role") === "option"
+          || up.getAttribute("role") === "menuitem"
+          || up.tagName === "BUTTON")) {
+        realClick(up);
+        break;
+      }
+    }
+  }
+
   /* Bounded by the CLOCK, not by a count of sleeps.
    *
    * A background or hidden tab throttles setTimeout to roughly once a second,
@@ -310,7 +382,7 @@ ${LaneUI.css}
       () => esc(picker.el),
       () => esc(document.activeElement || document.body),
       () => esc(document.body),
-      () => picker.el.click(),
+      () => realClick(picker.el),
       () => document.body.dispatchEvent(
         new MouseEvent("click", { bubbles: true })),
     ];
@@ -331,18 +403,27 @@ ${LaneUI.css}
     if (namesModel(picker.text, target))
       return { ok: true, already: true };
 
-    picker.el.click();
+    realClick(picker.el);
     const option = await findOption(target);
     if (!option) {
       await closeMenu(picker);
       return { ok: false, why: target + " is not in this page's list" };
     }
-    option.click();
+    clickThrough(option);
     await sleep(220);
     await closeMenu(picker);
 
-    const after = findPicker();
-    if (after && namesModel(after.text, target)) return { ok: true };
+    /* These pickers update from state, not synchronously from the click, and
+     * on a slow tab that can take longer than one 220ms nap. Checking once
+     * and reporting failure was calling a switch that did work a failure,
+     * which is worse than being slow to confirm it. */
+    const deadline = Date.now() + 1200;
+    for (;;) {
+      const after = findPicker();
+      if (after && namesModel(after.text, target)) return { ok: true };
+      if (Date.now() >= deadline) break;
+      await sleep(90);
+    }
     return { ok: false, why: "clicked it, but the page did not switch" };
   }
 
@@ -439,7 +520,9 @@ ${LaneUI.css}
         <div class="pick">
           <div class="l-label">${a.variation === "best" ? "Best fit on" : "Cheapest that fits on"} ${esc(SITE_NAME)}</div>
           <div style="display:flex;align-items:baseline;gap:8px;margin-top:3px">
-            <span class="l-lead" style="flex:1">${esc(rec.display)}</span>
+            <span class="l-lead" style="flex:1">${esc(rec.display)}${
+              LaneProfile.isPaid(rec.id)
+                ? ` <span class="l-label l-warn">costs extra</span>` : ""}</span>
             <span class="l-num" style="font-size:13px;font-weight:600">${money(rec.cost)}</span>
           </div>
           ${headline}
@@ -452,6 +535,17 @@ ${LaneUI.css}
         ${rows ? `<table class="alts">${rows}</table>` : ""}
         ${favouriteRow(rec.id)}
         <div class="why l-sub">${esc(a.explain)}</div>
+        ${a.withPaid ? `<div class="paidnote">
+           <span class="l-label l-warn">Costs extra</span>
+           <div class="l-sub" style="margin-top:3px">
+             <b>${esc(a.withPaid.display)}</b> would fit this better, but it is
+             not on the free plan${a.withPaid.cost ? " \u2014 about "
+               + money(a.withPaid.cost) + " on the API" : ""}.
+           </div>
+           <button class="l-btn--link" id="showPaid" style="margin-top:4px">
+             Include models that cost extra
+           </button>
+         </div>` : ""}
         ${a.assuming_all ? `<div class="setup">
            <span class="ico">${LaneUI.icons.gear}</span>
            <span>
@@ -462,6 +556,15 @@ ${LaneUI.css}
            </span>
          </div>` : ""}
       </div>`;
+
+    const showPaid = root.getElementById("showPaid");
+    if (showPaid) showPaid.addEventListener("click", () => {
+      if (!profile) return;
+      profile.paid = true;
+      LaneProfile.patch({ paid: true });
+      allowedModels = LaneProfile.allowed(profile);
+      if (lastText) advise(lastText);
+    });
 
     const setupLink = root.getElementById("setupLink");
     if (setupLink) setupLink.addEventListener("click", () => {
@@ -632,6 +735,29 @@ ${LaneUI.css}
     let a;
     try {
       a = LaneCore.advise(text, SITE, variation, allowedModels);
+
+      /* What this would have said if money were no object.
+       *
+       * Filtering paid models out and saying nothing about it turns the panel
+       * into a liar by omission: somebody on a free plan would be told Sonnet
+       * is the answer to a question Opus is measurably better at, with no way
+       * to know the trade was made on their behalf. So the comparison is run
+       * both ways and the difference is reported - once, quietly, with the
+       * price attached and a switch beside it.
+       *
+       * Only when it is a DIFFERENT model. Most requests do not have a better
+       * paid answer, and a paywall note under every one of those is an advert.
+       */
+      a.withPaid = null;
+      if (profile && !profile.paid && !a.unavailable_here) {
+        const uncapped = LaneCore.advise(
+          text, SITE, variation, LaneProfile.allowedIgnoringCost(profile));
+        if (uncapped && uncapped.recommend
+            && uncapped.recommend.id !== (a.recommend || {}).id
+            && LaneProfile.isPaid(uncapped.recommend.id)) {
+          a.withPaid = uncapped.recommend;
+        }
+      }
     } catch (e) {
       last = null;
       return;                        // never take the host page down with us

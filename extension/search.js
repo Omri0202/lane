@@ -249,6 +249,10 @@
      * at an empty box wondering what happened to it. */
     const row = (label, pick, note, kind) => {
       const bits = [SITE_NAME[pick.site]];
+      // Said on the row itself, not in a footnote: this is the moment
+      // somebody decides whether to click, and finding out afterwards that
+      // the model wants a subscription is finding out too late.
+      if (LaneProfile.isPaid(pick.rec.id)) bits.push("costs extra");
       if (note) bits.push(note);
       if (!PREFILLS[pick.site]) bits.push("copied \u2014 paste it in");
       return `

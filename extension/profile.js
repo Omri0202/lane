@@ -38,6 +38,18 @@ const LaneProfile = (() => {
     focus: [],
     // Their default answer to "cheap or best".
     variation: "save",
+    /* Whether models that cost extra may be recommended at all.
+     *
+     * Off, because the alternative is a panel that confidently tells somebody
+     * on a free plan to use Claude Fable 5, and the only way to find out that
+     * this was never an option is to click it and meet a paywall. Advice you
+     * cannot act on is worse than no advice: it costs a click and it teaches
+     * you not to trust the next one.
+     *
+     * Turning it on is one click in the launcher, and the panel says so at
+     * the moment it matters - when a paid model is the one that would
+     * actually have answered better. */
+    paid: false,
   };
 
   const usingChromeStorage = () => {
@@ -89,9 +101,36 @@ const LaneProfile = (() => {
    * Returned as null rather than a full list on purpose: the panel says
    * "assuming you can use every Claude model" when it has not been told, and
    * that admission is only possible if the two states stay distinguishable. */
+  /* Which model ids may be recommended.
+   *
+   * Two filters, and they compose: what this person said they can pick, and
+   * whether they have agreed to be shown models that cost extra. Null still
+   * means "no restriction", so a profile that has said nothing and allows
+   * paid models behaves exactly as it did before any of this existed.
+   */
   function allowed(profile) {
+    const chosen = profile && profile.models && profile.models.length
+      ? profile.models : null;
+    if (!profile || profile.paid) return chosen;
+
+    const free = (typeof LaneCore !== "undefined" ? LaneCore.MODELS : [])
+      .filter((m) => m.plan !== "paid").map((m) => m.id);
+    if (!free.length) return chosen;                // catalog says nothing
+    return chosen ? chosen.filter((id) => free.includes(id)) : free;
+  }
+
+  /* The same question without the free filter, so a surface can work out what
+   * this person is missing and say so, rather than quietly recommending
+   * second best and letting them assume that is all there is. */
+  function allowedIgnoringCost(profile) {
     return profile && profile.models && profile.models.length
       ? profile.models : null;
+  }
+
+  function isPaid(id) {
+    const m = (typeof LaneCore !== "undefined" ? LaneCore.MODELS : [])
+      .find((x) => x.id === id);
+    return !!m && m.plan === "paid";
   }
 
   /* Favourites this person can still reach, in their own order. A model they
@@ -103,7 +142,8 @@ const LaneProfile = (() => {
       (id) => !permitted || permitted.includes(id));
   }
 
-  return { load, save, patch, allowed, favourites, DEFAULT, KEY };
+  return { load, save, patch, allowed, allowedIgnoringCost, isPaid,
+           favourites, DEFAULT, KEY };
 })();
 
 if (typeof module !== "undefined" && module.exports) module.exports = LaneProfile;
