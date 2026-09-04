@@ -203,3 +203,20 @@ def test_no_surface_defines_its_own_palette():
         if stray:
             offenders.append(f"{path.name}: {len(stray)} local colour tokens")
     assert not offenders, "; ".join(offenders)
+
+
+def test_the_css_template_contains_no_backticks():
+    """A backtick inside the CSS closes the template literal it lives in.
+
+    It closes it silently: what follows is then read as JavaScript, and the
+    error you get names a CSS keyword as an unexpected identifier, several
+    lines from anything that looks like a string. Worth a grep, because a
+    prose comment about `all: initial` is the natural way to write it and the
+    natural way is wrong here.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    text = (root / "lane" / "web" / "ui.js").read_text(encoding="utf-8")
+    start = text.index("const css = `") + len("const css = `")
+    end = text.index("`;", start)
+    assert "`" not in text[start:end], (
+        "backtick inside the CSS template literal - use a quote")

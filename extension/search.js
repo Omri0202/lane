@@ -57,7 +57,8 @@
   // clipboard rather than being silently dropped.
   const PREFILLS = { claude: true, chatgpt: true, gemini: false };
   const DISMISS_KEY = "lane.searchOffer";
-  const DEBOUNCE_MS = 340;
+  const DEBOUNCE_MS = 260;
+  const MAX_WAIT_MS = 550;
 
   const esc = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
@@ -67,10 +68,52 @@
     : n < 0.01 ? "$" + n.toFixed(4)
     : n < 1 ? "$" + n.toFixed(3) : "$" + n.toFixed(2);
 
+  /* Said in the words of the request, not of the tool.
+   *
+   * "A model would answer this better than a list of links" is true of every
+   * one of these and therefore tells nobody anything. What actually persuades
+   * somebody mid-keystroke is hearing their own question described back. */
+  const HEADLINE = {
+    reasoning: "This needs working out.",
+    longform:  "This wants writing, not finding.",
+    translate: "This is a translation.",
+    vision:    "This needs to look at something.",
+    image_gen: "This needs a picture made.",
+    tools:     "This needs steps carried out.",
+    general:   "This is a question, not a search.",
+    _:         "This is a question, not a search.",
+  };
+  const REASON = {
+    reasoning: "Search gives you pages about it. A model gives you the answer.",
+    longform:  "No page has this written already.",
+    translate: "A model keeps the meaning; a dictionary keeps the words.",
+    vision:    "Attach the image where a search box cannot take one.",
+    image_gen: "Search finds pictures that exist. This one does not yet.",
+    tools:     "It can do them in order rather than tell you about them.",
+    general:   "You would be reading three pages to assemble this yourself.",
+    _:         "You would be reading three pages to assemble this yourself.",
+  };
+
+  /* Whose results the card is sitting on top of. Naming it is the difference
+     between "Enter still searches" and "Enter still searches Google". */
+  function engineName() {
+    const h = location.hostname.replace(/^www\./, "");
+    if (/^google\./.test(h)) return "Google";
+    if (h === "bing.com") return "Bing";
+    if (h === "duckduckgo.com") return "DuckDuckGo";
+    if (h === "search.brave.com") return "Brave";
+    if (h === "ecosia.org") return "Ecosia";
+    return "";                       // dev harness: no name to give
+  }
+
   let profile = null;
   let dismissedThisPage = false;
   let host = null;
   let lastQuery = "";
+  let shownSig = null;
+  // The query the card would send: it keeps tracking what is being typed even
+  // on the passes that leave the card alone.
+  let pending = "";
 
   // ── when to speak ──────────────────────────────────────────────────────────
   function worthOffering(q, verdict) {
@@ -160,13 +203,29 @@
   // ── the card ───────────────────────────────────────────────────────────────
   function hide() {
     if (host) { host.remove(); host = null; }
+    shownSig = null;
   }
 
   function show(query, p) {
+    /* Rebuild only when the card would actually look different.
+     *
+     * It is now re-evaluated every few hundred milliseconds while somebody
+     * types, and tearing the node down and building it again on each pass
+     * makes it strobe. Most keystrokes change the query without changing
+     * either pick, so most passes should change nothing on screen. */
+    const sig = [p.lane.lane, p.cheap && p.cheap.rec.id, p.cheap && p.cheap.site,
+                 p.best && p.best.rec.id, p.best && p.best.site,
+                 profile.onboarded].join("|");
+    if (host && sig === shownSig) { pending = query; return; }
+    shownSig = sig;
+    pending = query;
     hide();
     const a = p.lane;
     const same = p.cheap && p.best && p.cheap.rec.id === p.best.rec.id;
     const needsSetup = !profile.onboarded;
+    const headline = HEADLINE[a.lane] || HEADLINE._;
+    const reason = REASON[a.lane] || REASON._;
+    const engine = engineName();
 
     host = document.createElement("div");
     host.id = "lane-search-host";
@@ -184,7 +243,7 @@
     const row = (label, pick, note) => {
       const bits = [SITE_NAME[pick.site]];
       if (note) bits.push(note);
-      if (!PREFILLS[pick.site]) bits.push("copied - paste it in");
+      if (!PREFILLS[pick.site]) bits.push("copied \u2014 paste it in");
       return `
       <button class="l-row pick" data-site="${esc(pick.site)}">
         <span class="l-row__tag l-label">${label}</span>
@@ -193,6 +252,7 @@
           <span class="l-row__note">${esc(bits.join(" \u00b7 "))}</span>
         </span>
         <span class="l-row__end l-num">${money(pick.rec.cost)}</span>
+        <span class="l-row__go">${LaneUI.icons.chevron}</span>
       </button>`;
     };
 
@@ -200,49 +260,72 @@
 <style>
 ${LaneUI.css}
 
-/* Only what is particular to this card. The shell, the rows, the pill and the
-   buttons are the shared ones, so the search card and the panel read as the
-   same object seen in two places rather than two things that look similar. */
-:host { display: block; }
-.card { pointer-events: auto; animation: l-rise .16s cubic-bezier(.2,.7,.3,1) both; }
-.lead  { margin-top: 6px; }
-.picks { margin-top: var(--l-2); }
-.setup { margin-top: var(--l-3); padding-top: var(--l-3);
-         border-top: 1px dashed var(--l-line); }
-.foot  { margin-top: var(--l-3); }
-.foot button { color: var(--l-faint); font-size: 11px; text-decoration: underline; }
-.foot button:hover { color: var(--l-ink); }
+/* Local to this card. The shell, the rows, the pill and the buttons are the
+   shared ones, so the search card and the panel read as the same object seen
+   in two places rather than two things that happen to look similar. */
+.card { pointer-events: auto; animation: l-rise .18s cubic-bezier(.2,.7,.3,1) both; }
+
+.l-head { gap: 7px; }
+.logo { display: flex; color: var(--l-accent); }
+.logo svg { width: 15px; height: 15px; display: block; }
+
+.lead  { margin: 0 0 2px; }
+.picks { margin-top: var(--l-3); display: flex; flex-direction: column; gap: 6px; }
+
+.setup { margin-top: var(--l-3); display: flex; gap: 9px; align-items: flex-start;
+         padding: 9px 10px; border-radius: var(--l-r-md);
+         background: var(--l-sunk); }
+.setup .ico { flex: none; color: var(--l-dim); display: flex; margin-top: 1px; }
+.setup .ico svg { width: 14px; height: 14px; display: block; }
+.setup button { display: block; text-align: left; }
+
+/* The reassurance rail. The single biggest reason a card like this gets
+   dismissed on sight is the fear that it has taken the keyboard away, so the
+   card says outright that Enter still does what it always did. */
+.rail { display: flex; align-items: center; gap: var(--l-2);
+        padding: 7px var(--l-3); border-top: 1px solid var(--l-line);
+        background: var(--l-panel); }
+.rail .k { font-size: 10px; color: var(--l-faint); }
+.rail kbd { font: 600 9.5px var(--l-mono); color: var(--l-dim);
+            border: 1px solid var(--l-line-2); border-bottom-width: 2px;
+            border-radius: 4px; padding: 1px 4px; }
+.rail button { margin-left: auto; font-size: 10px; color: var(--l-faint); }
+.rail button:hover { color: var(--l-ink); text-decoration: underline; }
 </style>
 <div class="l-card card">
   <div class="l-head">
-    <span class="l-brand">L.A.N.E.</span>
+    <span class="logo">${LaneUI.icons.mark}</span>
+    <span class="l-brand">LANE</span>
+    <span class="l-pill l-pill--${esc(a.lane)}">${esc(a.lane_label)}</span>
     <span class="l-grow"></span>
     <button class="l-icon" id="close" title="Not this time"
             aria-label="Dismiss">${LaneUI.icons.close}</button>
   </div>
   <div class="l-pad">
-    <span class="l-pill l-pill--${esc(a.lane)}">${esc(a.lane_label)}</span>
-    <div class="lead l-sub">A model would answer this better than a list of links.</div>
+    <p class="lead l-lead">${esc(headline)}</p>
+    <p class="l-sub" style="margin:0">${esc(reason)}</p>
 
     <div class="picks">
       ${same
-        ? row("Use", p.cheap, "cheapest and the best fit")
+        ? row("Use", p.cheap, "cheapest, and the best fit")
         : (p.cheap ? row("Cheapest", p.cheap, null) : "") +
           (p.best ? row("Best", p.best, p.best.fit ? "" : null) : "")}
     </div>
 
     ${needsSetup ? `<div class="setup">
-        <button class="l-btn--link" id="setup">
-          Tell LANE which models you actually have
-        </button>
-        <div class="l-micro" style="margin-top:2px">
-          Right now it is guessing from the full list.
-        </div>
+        <span class="ico">${LaneUI.icons.gear}</span>
+        <span>
+          <button class="l-btn--link" id="setup">Which models do you have?</button>
+          <span class="l-micro" style="display:block;margin-top:1px">
+            Guessing from all ${LaneCore.MODELS.length} until you say.
+          </span>
+        </span>
       </div>` : ""}
-
-    <div class="foot">
-      <button class="l-btn--link" id="never">Never on searches</button>
-    </div>
+  </div>
+  <div class="rail">
+    <kbd>Enter</kbd>
+    <span class="k">still searches${engine ? " " + esc(engine) : ""}</span>
+    <button class="l-btn--link" id="never">Never on searches</button>
   </div>
 </div>`;
 
@@ -263,11 +346,12 @@ ${LaneUI.css}
     for (const b of root.querySelectorAll(".pick")) {
       b.addEventListener("click", async () => {
         const site = b.dataset.site;
+        const q = pending || query;
         if (!PREFILLS[site]) {
-          try { await navigator.clipboard.writeText(query); } catch (e) { /* fine */ }
+          try { await navigator.clipboard.writeText(q); } catch (e) { /* fine */ }
         }
         const url = PREFILLS[site]
-          ? SITE_URL[site] + encodeURIComponent(query)
+          ? SITE_URL[site] + encodeURIComponent(q)
           : SITE_URL[site];
         window.open(url, "_blank", "noopener");
         hide();
@@ -311,12 +395,28 @@ ${LaneUI.css}
     return el.innerText || "";
   }
 
+  /* Trailing debounce alone was the bug: it only fires once typing STOPS, and
+     nobody stops before pressing Enter. The card was therefore never seen
+     until the results page had already loaded, which is precisely the moment
+     it is useless - the search has been run and the decision made.
+
+     So: still debounced, but with a ceiling. However long somebody keeps
+     typing, the query gets looked at at least every MAX_WAIT_MS. Classifying
+     costs about 200 microseconds, so the ceiling is free. */
   let timer = null;
+  let lastLook = 0;
   document.addEventListener("input", (e) => {
     if (!isSearchBox(e.target)) return;
-    clearTimeout(timer);
     const text = textOf(e.target);
-    timer = setTimeout(() => consider(text), DEBOUNCE_MS);
+    const now = Date.now();
+    clearTimeout(timer);
+    if (now - lastLook >= MAX_WAIT_MS) {
+      lastLook = now;
+      consider(text);
+      return;
+    }
+    timer = setTimeout(() => { lastLook = Date.now(); consider(text); },
+                       DEBOUNCE_MS);
   }, true);
 
   // Pressing Enter hands off to the engine; the card should go with it rather

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import pathlib
+import re
 
 import pytest
 
@@ -170,7 +171,7 @@ def test_it_does_not_claim_a_prefill_it_cannot_do():
     assert "gemini: false" in src
     # The row itself has to say so. Arriving at an empty box wondering where
     # your question went is worse than being told to paste it.
-    assert "copied - paste it in" in src
+    assert "copied" in src and "paste it in" in src
 
 
 def test_it_never_sends_the_query_anywhere():
@@ -179,3 +180,30 @@ def test_it_never_sends_the_query_anywhere():
     src = read("search.js")
     assert "fetch(" not in src
     assert "XMLHttpRequest" not in src
+
+
+def test_the_card_is_looked_at_while_typing_continues():
+    """A trailing debounce alone never fires before Enter.
+
+    It resets on every keystroke, so it only runs once typing STOPS - and
+    nobody stops before pressing Enter. The card would therefore only ever be
+    seen on the results page, which is exactly the moment it is useless: the
+    search has been run and the choice already made. There has to be a
+    ceiling on the wait as well as a delay after it.
+    """
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    assert "MAX_WAIT_MS" in src, "no ceiling on the debounce"
+    assert "now - lastLook >= MAX_WAIT_MS" in src
+    ceiling = int(re.search(r"MAX_WAIT_MS = (\d+)", src).group(1))
+    delay = int(re.search(r"DEBOUNCE_MS = (\d+)", src).group(1))
+    # Long enough not to run on every keystroke, short enough that a card
+    # appears while there are still words left to type.
+    assert delay < ceiling <= 800, (delay, ceiling)
+
+
+def test_the_card_says_enter_still_searches():
+    """The reason a card like this gets dismissed unread is the fear that it
+    has taken the keyboard away. Saying so costs one line."""
+    src = (EXT / "search.js").read_text(encoding="utf-8")
+    assert "still searches" in src
+    assert "<kbd>Enter</kbd>" in src

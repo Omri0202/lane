@@ -100,7 +100,11 @@ ${LaneUI.css}
    the card, the rows, the buttons, the pills, the type scale - comes from
    ui.js, so the panel, the search card and the launcher are recognisably the
    same object rather than three that happen to share a colour. */
-:host { display:block; }
+
+/* The same mark as the search card and the toolbar, so all three read as one
+   product rather than three that happen to share a colour. */
+.logo { display: flex; color: var(--l-accent); }
+.logo svg { width: 15px; height: 15px; display: block; }
 
 .pick { margin-top: var(--l-3); }
 .headline { margin-top: 5px; font-size: 12px; }
@@ -122,8 +126,12 @@ ${LaneUI.css}
 .why { margin-top: var(--l-3); padding-top: var(--l-3);
        border-top: 1px solid var(--l-line); }
 
-.setup { margin-top: var(--l-2); padding-top: var(--l-2);
-         border-top: 1px dashed var(--l-line); }
+.setup { margin-top: var(--l-3); display: flex; gap: 9px;
+         align-items: flex-start; padding: 9px 10px;
+         border-radius: var(--l-r-md); background: var(--l-sunk); }
+.setup .ico { flex: none; color: var(--l-dim); display: flex; margin-top: 1px; }
+.setup .ico svg { width: 14px; height: 14px; display: block; }
+.setup button { display: block; text-align: left; }
 
 .useout { margin-top: 6px; font-size: 11px; color: var(--l-dim);
           min-height: 15px; }
@@ -147,7 +155,8 @@ ${LaneUI.css}
 </style>
 <div class="l-card card" id="card">
   <div class="l-head">
-    <span class="l-brand">L.A.N.E.</span>
+    <span class="logo">${LaneUI.icons.mark}</span>
+    <span class="l-brand">LANE</span>
     <span class="l-grow"></span>
     <div class="l-seg" id="seg" role="group" aria-label="What to optimise for">
       <button data-v="save" aria-pressed="true"  title="Cheapest model that still does the job">SAVE</button>
@@ -440,12 +449,13 @@ ${LaneUI.css}
         ${favouriteRow(rec.id)}
         <div class="why l-sub">${esc(a.explain)}</div>
         ${a.assuming_all ? `<div class="setup">
-           <button class="l-btn--link" id="setupLink">
-             Tell LANE which models you actually have
-           </button>
-           <div class="l-micro" style="margin-top:2px">
-             Right now it is guessing from the full list.
-           </div>
+           <span class="ico">${LaneUI.icons.gear}</span>
+           <span>
+             <button class="l-btn--link" id="setupLink">Which models do you have?</button>
+             <span class="l-micro" style="display:block;margin-top:1px">
+               Guessing from all ${LaneCore.MODELS.length} until you say.
+             </span>
+           </span>
          </div>` : ""}
       </div>`;
 

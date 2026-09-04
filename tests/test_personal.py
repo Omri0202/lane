@@ -26,7 +26,34 @@ def manifest() -> dict:
 
 
 def read(name: str) -> str:
-    return (EXT / name).read_text(encoding="utf-8")
+    """A surface's markup and its behaviour, together.
+
+    MV3 refuses inline <script>, so every page's JS lives in a file beside it.
+    These tests are about what a surface does, not which of its two files a
+    line ended up in, so they get both.
+    """
+    text = (EXT / name).read_text(encoding="utf-8")
+    if name.endswith(".html"):
+        script = EXT / (name[:-5] + ".js")
+        if script.is_file():
+            text += "\n" + script.read_text(encoding="utf-8")
+    return text
+
+
+def test_no_extension_page_runs_an_inline_script():
+    """An extension page runs under `script-src 'self'`.
+
+    A <script> with a body in it is refused, and refused quietly: the markup
+    renders, the handlers never attach, and the page looks merely inert. This
+    is a grep because the symptom gives no clue as to the cause.
+    """
+    for page in EXT.glob("*.html"):
+        html = page.read_text(encoding="utf-8")
+        for chunk in html.split("<script")[1:]:
+            head, _, body = chunk.partition(">")
+            assert "src=" in head, (
+                f"{page.name} has an inline <script>; MV3 will refuse it")
+            assert not body.split("</script")[0].strip(), page.name
 
 
 # ── the interview is reachable, and only when it should be ───────────────────

@@ -93,6 +93,29 @@ const LaneUI = (() => {
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* ── shadow-root isolation ────────────────────────────────────────────────
+   A shadow root is not a style boundary for inherited properties: the host
+   page's font, colour, text-align and direction all come straight through.
+
+   'all: initial' catches most of it and pointedly does NOT catch 'direction'
+   or 'unicode-bidi' - the spec exempts them. That exemption is why the card
+   came out mirrored on a Hebrew page: close button on the wrong side, labels
+   flushed right, full stops leading the sentence instead of ending it. Our
+   text is English wherever the page is, so it is stated rather than
+   inherited.
+
+   Custom properties survive 'all', so the tokens above are untouched.        */
+:host {
+  all: initial;
+  display: block;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: left;
+  font: 13px/1.55 var(--l-font);
+  color: var(--l-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
 /* ── type ─────────────────────────────────────────────────────────────────
    Six sizes. A label is not a small body; it is its own thing, and giving it
    tracking and weight is what stops a dense panel reading as a wall.        */
@@ -220,6 +243,13 @@ const LaneUI = (() => {
   transition: border-color .13s ease, background .13s ease;
 }
 .l-row:hover { border-color: var(--l-accent); background: var(--l-accent-soft); }
+.l-row:focus-visible { outline: 2px solid var(--l-accent); outline-offset: 2px; }
+/* A chevron that leans in on hover. A row that opens something should say so
+   before it is clicked, not after. */
+.l-row__go { flex: none; color: var(--l-faint); display: flex;
+             transition: transform .13s ease, color .13s ease; }
+.l-row__go svg { width: 14px; height: 14px; display: block; }
+.l-row:hover .l-row__go { color: var(--l-accent); transform: translateX(2px); }
 .l-row + .l-row { margin-top: 6px; }
 .l-row__tag  { width: 54px; flex: none; }
 .l-row__main { flex: 1 1 auto; min-width: 0; }
@@ -304,6 +334,10 @@ const LaneUI = (() => {
     arrow: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.5 4.5L12 8l-3.5 3.5"/></svg>',
     check: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3.2L13 5"/></svg>',
     spark: '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1l1.5 4.2L13.7 7 9.5 8.4 8 12.6 6.5 8.4 2.3 7l4.2-1.8z"/></svg>',
+    /* The extension's own mark, so the card is recognisably the same product
+       as the thing in the toolbar: three tracks converging into one. */
+    mark: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3.4L7 8M2 12.6L7 8M2 8h5"/><path d="M7 8h7"/></svg>',
+    chevron: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5L10.5 8 6 12.5"/></svg>',
   };
 
   /* For ordinary pages. Shadow roots take `css` directly instead. */
@@ -318,5 +352,17 @@ const LaneUI = (() => {
 
   return { css, icons, mount };
 })();
+
+/* Ordinary pages of ours mark themselves with <html data-lane> and get the
+   stylesheet automatically. It has to be automatic: an extension page runs
+   under `script-src \'self\'`, so <script>LaneUI.mount()</script> is refused
+   outright. Content scripts have no such attribute on the host page, which is
+   the point - they take `css` into their own shadow root and leave the page
+   they are visiting alone. */
+if (typeof document !== "undefined"
+    && document.documentElement
+    && document.documentElement.hasAttribute("data-lane")) {
+  LaneUI.mount();
+}
 
 if (typeof module !== "undefined" && module.exports) module.exports = LaneUI;
