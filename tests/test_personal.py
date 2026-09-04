@@ -409,3 +409,28 @@ def test_the_paid_setting_is_a_switch_that_goes_both_ways():
     ui = (EXT / "ui.js").read_text(encoding="utf-8")
     assert ".l-switch" in ui, "the switch is not in the design system"
     assert '.l-switch[aria-checked="true"]' in ui
+
+
+def test_the_cost_setting_has_a_home_that_does_not_come_and_go():
+    """It lived only inside the amber note, and the note only appears when
+    there IS a paid model worth mentioning.
+
+    So on a request whose answer is already free - which is most of them, by
+    design - there was no switch, no note, and nothing to suggest the setting
+    existed. "Where is the option to switch to models without money?" is the
+    correct question to ask of that, and the answer has to be somewhere that
+    is always there.
+    """
+    src = read("advisor.js")
+    # A gear in the header, and a drawer behind it that is part of the card's
+    # frame rather than of whatever advice happens to be showing.
+    assert 'id="gear"' in src and 'id="settings"' in src
+    assert 'id="paidSwitch"' in src
+
+    shell = src[src.index('<div class="l-head">'):src.index('<div id="content">')]
+    assert 'id="settings"' in shell, "the drawer is inside the advice render"
+    assert "Models that cost extra" in shell
+
+    # One code path for the setting, so the two switches cannot disagree.
+    assert "function setPaid(" in src
+    assert src.count("LaneProfile.patch({ paid:") == 1

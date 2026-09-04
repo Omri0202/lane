@@ -137,6 +137,10 @@ ${LaneUI.css}
             box-shadow: inset 3px 0 0 var(--l-best); }
 .paidnote b { font-weight: 620; color: var(--l-ink); }
 
+.settings { padding: var(--l-3); background: var(--l-panel);
+            border-bottom: 1px solid var(--l-line);
+            animation: l-rise .14s cubic-bezier(.2,.7,.3,1) both; }
+
 .setup { margin-top: var(--l-3); display: flex; gap: 9px;
          align-items: flex-start; padding: 9px 10px;
          border-radius: var(--l-r-md); background: var(--l-sunk); }
@@ -173,8 +177,26 @@ ${LaneUI.css}
       <button data-v="save" aria-pressed="true"  title="Cheapest model that still does the job">SAVE</button>
       <button data-v="best" aria-pressed="false" title="Model whose strengths fit this request">BEST</button>
     </div>
+    <button class="l-icon" id="gear" title="Settings"
+            aria-label="Settings" aria-expanded="false">${LaneUI.icons.gear}</button>
     <button class="l-icon" id="close" title="Hide until next reload"
             aria-label="Hide">${LaneUI.icons.close}</button>
+  </div>
+  <div class="settings" id="settings" hidden>
+    <div class="l-toggle">
+      <span class="l-toggle__text">
+        <span class="l-body">Models that cost extra</span>
+        <span class="l-micro" style="display:block">
+          Off means only what your plan already includes.
+        </span>
+      </span>
+      <button class="l-switch" id="paidSwitch" role="switch"
+              aria-checked="false"
+              aria-label="Include models that cost extra"></button>
+    </div>
+    <button class="l-btn--link" id="setupFull" style="margin-top:10px">
+      Which models do you have?
+    </button>
   </div>
   <div id="content"></div>
   <div class="score" id="score" style="display:none"></div>
@@ -327,6 +349,20 @@ ${LaneUI.css}
   }
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  /* A content script may not navigate to a chrome-extension:// URL - Chrome
+   * refuses it as ERR_BLOCKED_BY_CLIENT, indistinguishable from an ad
+   * blocker - so it asks the service worker to open the page instead. */
+  function openSetupPage() {
+    try {
+      if (typeof chrome !== "undefined" && chrome.runtime
+          && chrome.runtime.sendMessage) {
+        chrome.runtime.sendMessage({ type: "lane:open-setup" });
+        return;
+      }
+    } catch (e) { /* fall through to the dev harness */ }
+    window.open(BASE.replace(/\/$/, "") + "/dev/ext/onboarding.html", "_blank");
+  }
 
   /* A pointer sequence, not a .click().
    *
@@ -635,27 +671,11 @@ ${LaneUI.css}
     });
 
     const showPaid = root.getElementById("showPaid");
-    if (showPaid) showPaid.addEventListener("click", () => {
-      if (!profile) return;
-      const on = showPaid.getAttribute("aria-checked") !== "true";
-      showPaid.setAttribute("aria-checked", String(on));
-      profile.paid = on;
-      LaneProfile.patch({ paid: on });
-      allowedModels = withoutMissing(LaneProfile.allowed(profile));
-      if (lastText) advise(lastText);
-    });
+    if (showPaid) showPaid.addEventListener("click",
+      () => setPaid(showPaid.getAttribute("aria-checked") !== "true"));
 
     const setupLink = root.getElementById("setupLink");
-    if (setupLink) setupLink.addEventListener("click", () => {
-      try {
-        if (typeof chrome !== "undefined" && chrome.runtime
-            && chrome.runtime.sendMessage) {
-          chrome.runtime.sendMessage({ type: "lane:open-setup" });
-          return;
-        }
-      } catch (e) { /* fall through */ }
-      window.open(BASE.replace(/\/$/, "") + "/dev/ext/onboarding.html", "_blank");
-    });
+    if (setupLink) setupLink.addEventListener("click", openSetupPage);
 
     const favRow = root.getElementById("favs");
     if (favRow) {
@@ -717,6 +737,45 @@ ${LaneUI.css}
     });
     show();
   }
+
+  /* The settings drawer.
+   *
+   * Wired once, here, rather than in renderAdvice: it lives outside #content
+   * so it survives every re-render, and a listener attached per render would
+   * accumulate one copy per keystroke.
+   *
+   * Both switches for the same setting stay in step because flipping either
+   * one re-advises, and re-advising re-renders the note that holds the other.
+   */
+  const gearBtn = root.getElementById("gear");
+  const settingsEl = root.getElementById("settings");
+  const paidSwitch = root.getElementById("paidSwitch");
+
+  gearBtn.addEventListener("click", () => {
+    const open = settingsEl.hidden;
+    settingsEl.hidden = !open;
+    gearBtn.setAttribute("aria-expanded", String(open));
+    if (open) paintPaidSwitch();
+  });
+
+  function paintPaidSwitch() {
+    paidSwitch.setAttribute("aria-checked",
+                            String(!!(profile && profile.paid)));
+  }
+
+  function setPaid(on) {
+    if (!profile) return;
+    profile.paid = on;
+    LaneProfile.patch({ paid: on });
+    allowedModels = withoutMissing(LaneProfile.allowed(profile));
+    paintPaidSwitch();
+    if (lastText) advise(lastText);
+  }
+
+  paidSwitch.addEventListener("click",
+    () => setPaid(paidSwitch.getAttribute("aria-checked") !== "true"));
+
+  root.getElementById("setupFull").addEventListener("click", openSetupPage);
 
   /* The scoreboard. Deliberately says "could have saved": LANE cannot see
      which model you actually picked, and a tool that counts its own advice as
